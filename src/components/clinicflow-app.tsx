@@ -158,6 +158,10 @@ export function ClinicFlowApp({
   const [isAddingPatient, setIsAddingPatient] = useState(false);
   const [isSavingJournal, setIsSavingJournal] = useState(false);
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
+  const [editingAppointmentId, setEditingAppointmentId] = useState("");
+  const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>(
+    Object.fromEntries(initialPatients.map((patient) => [patient.id, patient.status])),
+  );
   const [appointmentForm, setAppointmentForm] = useState<AppointmentForm>({
     ...defaultAppointmentForm,
     patient_id: initialPatients[0]?.id ?? "",
@@ -262,6 +266,9 @@ export function ClinicFlowApp({
 
   useEffect(() => {
     setPatients(initialPatients);
+    setStatusDrafts(
+      Object.fromEntries(initialPatients.map((patient) => [patient.id, patient.status])),
+    );
   }, [initialPatients]);
 
   useEffect(() => {
@@ -426,41 +433,98 @@ export function ClinicFlowApp({
 
     const appointmentAt = `${appointmentForm.appointment_year}-${appointmentForm.appointment_month}-${appointmentForm.appointment_day}T${appointmentForm.appointment_hour}:${appointmentForm.appointment_minute}`;
 
-    const { data, error } = await supabase
-      .from("appointments")
-      .insert({
-        patient_id: appointmentForm.patient_id,
-        therapist_id: therapistId,
-        appointment_at: appointmentAt,
-        room: appointmentForm.room.trim() || null,
-        status: "scheduled",
-        summary: appointmentForm.summary.trim() || null,
-      })
-      .select("*")
-      .single();
+    const payload = {
+      patient_id: appointmentForm.patient_id,
+      therapist_id: therapistId,
+      appointment_at: appointmentAt,
+      room: appointmentForm.room.trim() || null,
+      status: "scheduled",
+      summary: appointmentForm.summary.trim() || null,
+    };
+
+    const query = editingAppointmentId
+      ? supabase
+          .from("appointments")
+          .update(payload)
+          .eq("id", editingAppointmentId)
+          .select("*")
+          .single()
+      : supabase.from("appointments").insert(payload).select("*").single();
+
+    const { data, error } = await query;
 
     if (error || !data) {
       setIsSavingAppointment(false);
-      setAppointmentSaveStatus(
-        "קביעת הטיפול נכשלה. כנראה שצריך לאפשר כתיבה לטבלת appointments ב-Supabase.",
-      );
+      setAppointmentSaveStatus(editingAppointmentId
+        ? "עדכון התור נכשל. כנראה שצריך לאפשר update לטבלת appointments ב-Supabase."
+        : "קביעת הטיפול נכשלה. כנראה שצריך לאפשר כתיבה לטבלת appointments ב-Supabase.");
       return;
     }
 
     const nextAppointment = data as Appointment;
-    setAppointments((current) =>
-      [...current, nextAppointment].sort((a, b) =>
+    setAppointments((current) => {
+      const withoutEdited = current.filter((appointment) => appointment.id !== nextAppointment.id);
+      return [...withoutEdited, nextAppointment].sort((a, b) =>
         a.appointment_at.localeCompare(b.appointment_at),
-      ),
-    );
+      );
+    });
     setAppointmentForm({
       ...defaultAppointmentForm,
       patient_id: appointmentForm.patient_id,
       therapist_id: therapistId ?? "",
     });
     setIsSavingAppointment(false);
-    setAppointmentSaveStatus("הטיפול נקבע בהצלחה");
+    setEditingAppointmentId("");
+    setAppointmentSaveStatus(editingAppointmentId ? "התור עודכן בהצלחה" : "הטיפול נקבע בהצלחה");
     setActiveSection("appointments");
+  }
+
+  function handleEditAppointment(appointment: Appointment) {
+    const appointmentDate = new Date(appointment.appointment_at);
+    setEditingAppointmentId(appointment.id);
+    setAppointmentForm({
+      patient_id: appointment.patient_id,
+      therapist_id: appointment.therapist_id ?? "",
+      appointment_day: String(appointmentDate.getDate()).padStart(2, "0"),
+      appointment_month: String(appointmentDate.getMonth() + 1).padStart(2, "0"),
+      appointment_year: String(appointmentDate.getFullYear()),
+      appointment_hour: String(appointmentDate.getHours()).padStart(2, "0"),
+      appointment_minute:
+        minuteOptions.find((minute) => minute === String(appointmentDate.getMinutes()).padStart(2, "0")) ??
+        "00",
+      room: appointment.room ?? "",
+      summary: appointment.summary ?? "",
+    });
+    setAppointmentSaveStatus("");
+    setActiveSection("appointments");
+  }
+
+  async function handleQuickStatusSave(patientId: string) {
+    const nextStatus = statusDrafts[patientId];
+    if (!nextStatus) {
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("patients")
+      .update({ status: nextStatus })
+      .eq("id", patientId)
+      .select("*")
+      .single();
+
+    if (error || !data) {
+      setDeleteStatus("עדכון הסטטוס נכשל. כנראה שצריך לאפשר update ב-Supabase.");
+      return;
+    }
+
+    const updatedPatient = data as Patient;
+    setPatients((current) =>
+      current.map((patient) => (patient.id === updatedPatient.id ? updatedPatient : patient)),
+    );
+    if (selectedPatientId === updatedPatient.id) {
+      setJournalForm((current) => ({ ...current, status: updatedPatient.status }));
+    }
+    setDeleteStatus("סטטוס המטופל עודכן בהצלחה");
   }
 
   async function handleDeleteAppointment(appointmentId: string) {
@@ -679,6 +743,29 @@ export function ClinicFlowApp({
                   <div className="item-meta">
                     מטפל אחראי: {therapistNameById.get(patient.therapist_id ?? "") ?? "לשיבוץ"}
                   </div>
+                  <label className="inline-field">
+                    שינוי סטטוס
+                    <select
+                      value={statusDrafts[patient.id] ?? patient.status}
+                      onChange={(event) =>
+                        setStatusDrafts((current) => ({
+                          ...current,
+                          [patient.id]: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="חדש">חדש</option>
+                      <option value="בטיפול">בטיפול</option>
+                      <option value="מעקב">מעקב</option>
+                    </select>
+                  </label>
+                  <button
+                    className="secondary-btn"
+                    type="button"
+                    onClick={() => handleQuickStatusSave(patient.id)}
+                  >
+                    שמירת סטטוס
+                  </button>
                   <button
                     className="ghost-btn"
                     type="button"
@@ -837,8 +924,8 @@ export function ClinicFlowApp({
             </div>
             <article className="card journal-editor">
               <div className="card-head">
-                <h3>קביעת טיפול חדש</h3>
-                <span>תאריך ושעה</span>
+                <h3>{editingAppointmentId ? "עריכת תור קיים" : "קביעת טיפול חדש"}</h3>
+                <span>{editingAppointmentId ? "עדכון תאריך, שעה וחדר" : "תאריך ושעה"}</span>
               </div>
               <form className="journal-form" onSubmit={handleAppointmentSubmit}>
                 <label>
@@ -1014,8 +1101,25 @@ export function ClinicFlowApp({
 
                 <div className="journal-actions">
                   <button className="primary-btn" type="submit" disabled={isSavingAppointment}>
-                    {isSavingAppointment ? "שומר..." : "קביעת טיפול"}
+                    {isSavingAppointment ? "שומר..." : editingAppointmentId ? "שמירת שינויים" : "קביעת טיפול"}
                   </button>
+                  {editingAppointmentId ? (
+                    <button
+                      className="secondary-btn"
+                      type="button"
+                      onClick={() => {
+                        setEditingAppointmentId("");
+                        setAppointmentForm({
+                          ...defaultAppointmentForm,
+                          patient_id: selectedPatient?.id ?? "",
+                          therapist_id: selectedPatient?.therapist_id ?? "",
+                        });
+                        setAppointmentSaveStatus("");
+                      }}
+                    >
+                      ביטול עריכה
+                    </button>
+                  ) : null}
                   <div className="item-meta">{appointmentSaveStatus}</div>
                 </div>
               </form>
@@ -1041,6 +1145,13 @@ export function ClinicFlowApp({
                     </div>
                     <p>{appointment.summary ?? "טרם נכתב סיכום טיפול"}</p>
                     <div className="appointment-actions">
+                      <button
+                        className="secondary-btn"
+                        type="button"
+                        onClick={() => handleEditAppointment(appointment)}
+                      >
+                        עריכת תור
+                      </button>
                       <button
                         className="danger-btn"
                         type="button"
