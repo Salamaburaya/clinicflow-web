@@ -106,9 +106,17 @@ textarea {
 }
 
 .nav-pill {
+  display: block;
   padding: 14px 16px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.07);
+  transition: transform 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+  cursor: pointer;
+}
+
+.nav-pill:hover {
+  transform: translateY(-1px);
+  background: rgba(216, 239, 229, 0.22);
 }
 
 .sidebar-card {

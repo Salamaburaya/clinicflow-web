@@ -83,10 +83,18 @@ export default async function Home() {
           </p>
 
           <div className="nav-list">
-            <div className="nav-pill">לוח בקרה למנהלת</div>
-            <div className="nav-pill">מטופלים</div>
-            <div className="nav-pill">תורים</div>
-            <div className="nav-pill">צוות מטפל</div>
+            <a className="nav-pill" href="#dashboard">
+              לוח בקרה למנהלת
+            </a>
+            <a className="nav-pill" href="#patients">
+              מטופלים
+            </a>
+            <a className="nav-pill" href="#appointments">
+              תורים
+            </a>
+            <a className="nav-pill" href="#team">
+              צוות מטפל
+            </a>
           </div>
         </div>
 
@@ -98,7 +106,7 @@ export default async function Home() {
       </aside>
 
       <section className="content">
-        <div className="hero">
+        <div id="dashboard" className="hero">
           <div>
             <p className="section-tag">סקירה כללית</p>
             <h2>נתוני המכון נטענים ישירות מ-Supabase</h2>
@@ -177,7 +185,7 @@ export default async function Home() {
         </section>
 
         <section className="panels-grid">
-          <article className="panel">
+          <article id="team" className="panel">
             <div className="panel-head">
               <h3>צוות מטפל</h3>
               <span className="muted">{therapists.length} רשומות</span>
@@ -200,7 +208,7 @@ export default async function Home() {
             )}
           </article>
 
-          <article className="panel">
+          <article id="appointments" className="panel">
             <div className="panel-head">
               <h3>תורים קרובים</h3>
               <span className="muted">מתוך `appointments`</span>
@@ -233,7 +241,7 @@ export default async function Home() {
           </article>
         </section>
 
-        <section className="panel">
+        <section id="patients" className="panel">
           <div className="section-head">
             <div>
               <p className="section-tag">מטופלים</p>
