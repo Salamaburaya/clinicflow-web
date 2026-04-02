@@ -123,6 +123,14 @@ function formatAppointmentTime(value: string) {
   });
 }
 
+function formatAppointmentDate(value: string) {
+  return new Date(value).toLocaleDateString("he-IL", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
+
 function formatJournalDate(value: string) {
   return new Date(value).toLocaleDateString("he-IL", {
     year: "numeric",
@@ -190,6 +198,30 @@ export function ClinicFlowApp({
     [patient.full_name, patient.discipline, patient.status]
       .join(" ")
       .includes(search.trim()),
+  );
+  const appointmentPatientById = useMemo(
+    () => new Map(patients.map((patient) => [patient.id, patient])),
+    [patients],
+  );
+  const nextAppointmentByPatientId = useMemo(() => {
+    const map = new Map<string, Appointment>();
+    appointments.forEach((appointment) => {
+      if (!map.has(appointment.patient_id)) {
+        map.set(appointment.patient_id, appointment);
+      }
+    });
+    return map;
+  }, [appointments]);
+  const selectedPatientAppointments = appointments.filter(
+    (appointment) => appointment.patient_id === selectedPatient?.id,
+  );
+  const nextAppointmentForSelectedPatient = selectedPatientAppointments[0];
+  const todayKey = new Date().toDateString();
+  const todayAppointments = appointments.filter(
+    (appointment) => new Date(appointment.appointment_at).toDateString() === todayKey,
+  );
+  const upcomingAppointments = appointments.filter(
+    (appointment) => new Date(appointment.appointment_at).toDateString() !== todayKey,
   );
 
   const stats = [
@@ -588,6 +620,21 @@ export function ClinicFlowApp({
     setJournalSaveStatus("");
   }
 
+  function handleCreateAppointmentForPatient(patientId: string) {
+    const patient = patients.find((item) => item.id === patientId);
+    setSelectedPatientId(patientId);
+    setEditingAppointmentId("");
+    setAppointmentForm({
+      ...defaultAppointmentForm,
+      patient_id: patientId,
+      therapist_id: patient?.therapist_id ?? "",
+      room: "",
+      summary: patient ? `מפגש המשך עבור ${patient.full_name}` : "",
+    });
+    setAppointmentSaveStatus("");
+    setActiveSection("appointments");
+  }
+
   return (
     <>
       <main className="page-shell">
@@ -714,17 +761,25 @@ export function ClinicFlowApp({
                 <p className="section-tag">מאגר מטופלים</p>
                 <h3>תיק מטופל עם סטטוס, אבחנה ויעדים טיפוליים</h3>
               </div>
-              <input
-                type="search"
-                placeholder="חיפוש לפי שם, תחום או סטטוס"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
+              <div className="section-tools">
+                <input
+                  type="search"
+                  placeholder="חיפוש לפי שם, תחום או סטטוס"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+                <div className="section-summary">
+                  {filteredPatients.length} מתוך {patients.length} מטופלים
+                </div>
+              </div>
             </div>
 
             <div className="patients-grid">
               {filteredPatients.map((patient) => (
-                <article key={patient.id} className="patient-card">
+                <article
+                  key={patient.id}
+                  className={`patient-card ${selectedPatient?.id === patient.id ? "selected" : ""}`}
+                >
                   <div>
                     <strong>{patient.full_name}</strong>
                     <div className="chips">
@@ -742,6 +797,18 @@ export function ClinicFlowApp({
                   </div>
                   <div className="item-meta">
                     מטפל אחראי: {therapistNameById.get(patient.therapist_id ?? "") ?? "לשיבוץ"}
+                  </div>
+                  <div className="list-item compact-item">
+                    <strong>התור הבא</strong>
+                    <div>
+                      {nextAppointmentByPatientId.get(patient.id)
+                        ? `${formatAppointmentDate(
+                            nextAppointmentByPatientId.get(patient.id)!.appointment_at,
+                          )} בשעה ${formatAppointmentTime(
+                            nextAppointmentByPatientId.get(patient.id)!.appointment_at,
+                          )}`
+                        : "עדיין לא נקבע תור"}
+                    </div>
                   </div>
                   <label className="inline-field">
                     שינוי סטטוס
@@ -774,6 +841,13 @@ export function ClinicFlowApp({
                     עריכת יומן המטופל
                   </button>
                   <button
+                    className="secondary-btn"
+                    type="button"
+                    onClick={() => handleCreateAppointmentForPatient(patient.id)}
+                  >
+                    קביעת טיפול למטופל
+                  </button>
+                  <button
                     className="danger-btn"
                     type="button"
                     onClick={() => handleDeletePatient(patient.id)}
@@ -803,92 +877,134 @@ export function ClinicFlowApp({
               </div>
 
               {selectedPatient ? (
-                <form className="journal-form" onSubmit={handleJournalSubmit}>
-                  <label>
-                    סטטוס
-                    <select
-                      value={journalForm.status}
-                      onChange={(event) =>
-                        setJournalForm((current) => ({
-                          ...current,
-                          status: event.target.value,
-                        }))
-                      }
-                      required
-                    >
-                      <option value="חדש">חדש</option>
-                      <option value="בטיפול">בטיפול</option>
-                      <option value="מעקב">מעקב</option>
-                    </select>
-                  </label>
-
-                  <label>
-                    אבחנה
-                    <textarea
-                      rows={3}
-                      value={journalForm.diagnosis}
-                      onChange={(event) =>
-                        setJournalForm((current) => ({
-                          ...current,
-                          diagnosis: event.target.value,
-                        }))
-                      }
-                      required
-                    />
-                  </label>
-
-                  <label>
-                    יעד טיפולי
-                    <textarea
-                      rows={3}
-                      value={journalForm.goal}
-                      onChange={(event) =>
-                        setJournalForm((current) => ({
-                          ...current,
-                          goal: event.target.value,
-                        }))
-                      }
-                      required
-                    />
-                  </label>
-
-                  <label>
-                    סיכום מפגש אחרון
-                    <textarea
-                      rows={5}
-                      value={journalForm.latestNote}
-                      onChange={(event) =>
-                        setJournalForm((current) => ({
-                          ...current,
-                          latestNote: event.target.value,
-                        }))
-                      }
-                      placeholder="אפשר לעדכן כאן את סיכום המפגש האחרון"
-                    />
-                  </label>
-
-                  <label>
-                    המלצות ותרגול לבית
-                    <textarea
-                      rows={3}
-                      value={journalForm.homeProgram}
-                      onChange={(event) =>
-                        setJournalForm((current) => ({
-                          ...current,
-                          homeProgram: event.target.value,
-                        }))
-                      }
-                      placeholder="תרגול בית, המלצות והנחיות"
-                    />
-                  </label>
-
-                  <div className="journal-actions">
-                    <button className="primary-btn" type="submit" disabled={isSavingJournal}>
-                      {isSavingJournal ? "שומר..." : "שמירת יומן"}
-                    </button>
-                    <div className="item-meta">{journalSaveStatus}</div>
+                <>
+                  <div className="patient-summary-grid">
+                    <div className="summary-card">
+                      <span>מטופל נבחר</span>
+                      <strong>{selectedPatient.full_name}</strong>
+                      <div className="chips">
+                        <span className="chip">{selectedPatient.discipline}</span>
+                        <span className="chip warm">{selectedPatient.status}</span>
+                      </div>
+                    </div>
+                    <div className="summary-card">
+                      <span>מטפל אחראי</span>
+                      <strong>
+                        {therapistNameById.get(selectedPatient.therapist_id ?? "") ?? "טרם שובץ"}
+                      </strong>
+                      <div className="item-meta">אפשר לשנות מטפל דרך קביעת התור הבא</div>
+                    </div>
+                    <div className="summary-card">
+                      <span>התור הבא</span>
+                      <strong>
+                        {nextAppointmentForSelectedPatient
+                          ? `${formatAppointmentDate(nextAppointmentForSelectedPatient.appointment_at)} | ${formatAppointmentTime(nextAppointmentForSelectedPatient.appointment_at)}`
+                          : "עדיין לא נקבע"}
+                      </strong>
+                      <button
+                        className="ghost-btn summary-action"
+                        type="button"
+                        onClick={() => handleCreateAppointmentForPatient(selectedPatient.id)}
+                      >
+                        קביעת טיפול
+                      </button>
+                    </div>
                   </div>
-                </form>
+
+                  <form className="journal-form" onSubmit={handleJournalSubmit}>
+                    <label>
+                      סטטוס
+                      <select
+                        value={journalForm.status}
+                        onChange={(event) =>
+                          setJournalForm((current) => ({
+                            ...current,
+                            status: event.target.value,
+                          }))
+                        }
+                        required
+                      >
+                        <option value="חדש">חדש</option>
+                        <option value="בטיפול">בטיפול</option>
+                        <option value="מעקב">מעקב</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      אבחנה
+                      <textarea
+                        rows={3}
+                        value={journalForm.diagnosis}
+                        onChange={(event) =>
+                          setJournalForm((current) => ({
+                            ...current,
+                            diagnosis: event.target.value,
+                          }))
+                        }
+                        required
+                      />
+                    </label>
+
+                    <label>
+                      יעד טיפולי
+                      <textarea
+                        rows={3}
+                        value={journalForm.goal}
+                        onChange={(event) =>
+                          setJournalForm((current) => ({
+                            ...current,
+                            goal: event.target.value,
+                          }))
+                        }
+                        required
+                      />
+                    </label>
+
+                    <label>
+                      סיכום מפגש אחרון
+                      <textarea
+                        rows={5}
+                        value={journalForm.latestNote}
+                        onChange={(event) =>
+                          setJournalForm((current) => ({
+                            ...current,
+                            latestNote: event.target.value,
+                          }))
+                        }
+                        placeholder="אפשר לעדכן כאן את סיכום המפגש האחרון"
+                      />
+                    </label>
+
+                    <label>
+                      המלצות ותרגול לבית
+                      <textarea
+                        rows={3}
+                        value={journalForm.homeProgram}
+                        onChange={(event) =>
+                          setJournalForm((current) => ({
+                            ...current,
+                            homeProgram: event.target.value,
+                          }))
+                        }
+                        placeholder="תרגול בית, המלצות והנחיות"
+                      />
+                    </label>
+
+                    <div className="journal-actions">
+                      <button className="primary-btn" type="submit" disabled={isSavingJournal}>
+                        {isSavingJournal ? "שומר..." : "שמירת יומן"}
+                      </button>
+                      <button
+                        className="secondary-btn"
+                        type="button"
+                        onClick={() => handleCreateAppointmentForPatient(selectedPatient.id)}
+                      >
+                        קביעת טיפול המשך
+                      </button>
+                      <div className="item-meta">{journalSaveStatus}</div>
+                    </div>
+                  </form>
+                </>
               ) : null}
 
               <div className="journal-history">
@@ -921,12 +1037,40 @@ export function ClinicFlowApp({
                 <p className="section-tag">יומן</p>
                 <h3>תורים, מטפל אחראי וחדר טיפול</h3>
               </div>
+              <div className="section-tools">
+                <div className="section-summary">היום: {todayAppointments.length} תורים</div>
+                <div className="section-summary">בהמשך: {upcomingAppointments.length} תורים</div>
+              </div>
             </div>
             <article className="card journal-editor">
               <div className="card-head">
                 <h3>{editingAppointmentId ? "עריכת תור קיים" : "קביעת טיפול חדש"}</h3>
                 <span>{editingAppointmentId ? "עדכון תאריך, שעה וחדר" : "תאריך ושעה"}</span>
               </div>
+              {appointmentForm.patient_id ? (
+                <div className="appointment-context">
+                  <div className="summary-card">
+                    <span>מטופל</span>
+                    <strong>
+                      {appointmentPatientById.get(appointmentForm.patient_id)?.full_name ?? "לא נבחר"}
+                    </strong>
+                    <div className="item-meta">
+                      {appointmentPatientById.get(appointmentForm.patient_id)?.discipline ?? "ללא תחום"}
+                    </div>
+                  </div>
+                  <div className="summary-card">
+                    <span>מטפל בפגישה</span>
+                    <strong>
+                      {therapistNameById.get(appointmentForm.therapist_id) ??
+                        therapistNameById.get(
+                          appointmentPatientById.get(appointmentForm.patient_id)?.therapist_id ?? "",
+                        ) ??
+                        "שיבוץ אוטומטי"}
+                    </strong>
+                    <div className="item-meta">אפשר לשנות לפני השמירה</div>
+                  </div>
+                </div>
+              ) : null}
               <form className="journal-form" onSubmit={handleAppointmentSubmit}>
                 <label>
                   מטופל
@@ -1124,48 +1268,119 @@ export function ClinicFlowApp({
                 </div>
               </form>
             </article>
-            <div className="timeline">
-              {appointments.map((appointment) => (
-                <article key={appointment.id} className="timeline-item">
-                  <div className="time-block">{formatAppointmentTime(appointment.appointment_at)}</div>
-                  <div>
-                    <strong>
-                      {patients.find((patient) => patient.id === appointment.patient_id)?.full_name ??
-                        "מטופל לא ידוע"}
-                    </strong>
-                    <div className="chips">
-                      <span className="chip">
-                        {patients.find((patient) => patient.id === appointment.patient_id)?.discipline ??
-                          "ללא תחום"}
-                      </span>
-                      <span className="chip warm">{appointment.room ?? "חדר לא הוגדר"}</span>
-                      <span className="chip chip-muted">
-                        {therapistNameById.get(appointment.therapist_id ?? "") ?? "ללא מטפל"}
-                      </span>
-                    </div>
-                    <p>{appointment.summary ?? "טרם נכתב סיכום טיפול"}</p>
-                    <div className="appointment-actions">
-                      <button
-                        className="secondary-btn"
-                        type="button"
-                        onClick={() => handleEditAppointment(appointment)}
-                      >
-                        עריכת תור
-                      </button>
-                      <button
-                        className="danger-btn"
-                        type="button"
-                        onClick={() => handleDeleteAppointment(appointment.id)}
-                      >
-                        מחיקת תור
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              ))}
-              {appointments.length === 0 ? (
-                <div className="empty-card">עדיין אין תורים במסד הנתונים.</div>
-              ) : null}
+            <div className="appointments-layout">
+              <article className="card">
+                <div className="card-head">
+                  <h4>תורים להיום</h4>
+                  <span>{todayAppointments.length} תורים</span>
+                </div>
+                <div className="timeline">
+                  {todayAppointments.map((appointment) => (
+                    <article key={appointment.id} className="timeline-item">
+                      <div className="time-block">{formatAppointmentTime(appointment.appointment_at)}</div>
+                      <div>
+                        <strong>
+                          {appointmentPatientById.get(appointment.patient_id)?.full_name ?? "מטופל לא ידוע"}
+                        </strong>
+                        <div className="chips">
+                          <span className="chip">
+                            {appointmentPatientById.get(appointment.patient_id)?.discipline ?? "ללא תחום"}
+                          </span>
+                          <span className="chip warm">{appointment.room ?? "חדר לא הוגדר"}</span>
+                          <span className="chip chip-muted">
+                            {therapistNameById.get(appointment.therapist_id ?? "") ?? "ללא מטפל"}
+                          </span>
+                        </div>
+                        <p>{appointment.summary ?? "טרם נכתב סיכום טיפול"}</p>
+                        <div className="appointment-actions">
+                          <button
+                            className="ghost-btn"
+                            type="button"
+                            onClick={() => handleSelectPatient(appointment.patient_id)}
+                          >
+                            פתיחת יומן מטופל
+                          </button>
+                          <button
+                            className="secondary-btn"
+                            type="button"
+                            onClick={() => handleEditAppointment(appointment)}
+                          >
+                            עריכת תור
+                          </button>
+                          <button
+                            className="danger-btn"
+                            type="button"
+                            onClick={() => handleDeleteAppointment(appointment.id)}
+                          >
+                            מחיקת תור
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                  {todayAppointments.length === 0 ? (
+                    <div className="empty-card">אין תורים להיום.</div>
+                  ) : null}
+                </div>
+              </article>
+
+              <article className="card">
+                <div className="card-head">
+                  <h4>תורים בהמשך</h4>
+                  <span>{upcomingAppointments.length} תורים</span>
+                </div>
+                <div className="timeline">
+                  {upcomingAppointments.map((appointment) => (
+                    <article key={appointment.id} className="timeline-item">
+                      <div className="time-block">
+                        <div>{formatAppointmentDate(appointment.appointment_at)}</div>
+                        <div>{formatAppointmentTime(appointment.appointment_at)}</div>
+                      </div>
+                      <div>
+                        <strong>
+                          {appointmentPatientById.get(appointment.patient_id)?.full_name ?? "מטופל לא ידוע"}
+                        </strong>
+                        <div className="chips">
+                          <span className="chip">
+                            {appointmentPatientById.get(appointment.patient_id)?.discipline ?? "ללא תחום"}
+                          </span>
+                          <span className="chip warm">{appointment.room ?? "חדר לא הוגדר"}</span>
+                          <span className="chip chip-muted">
+                            {therapistNameById.get(appointment.therapist_id ?? "") ?? "ללא מטפל"}
+                          </span>
+                        </div>
+                        <p>{appointment.summary ?? "טרם נכתב סיכום טיפול"}</p>
+                        <div className="appointment-actions">
+                          <button
+                            className="ghost-btn"
+                            type="button"
+                            onClick={() => handleSelectPatient(appointment.patient_id)}
+                          >
+                            פתיחת יומן מטופל
+                          </button>
+                          <button
+                            className="secondary-btn"
+                            type="button"
+                            onClick={() => handleEditAppointment(appointment)}
+                          >
+                            עריכת תור
+                          </button>
+                          <button
+                            className="danger-btn"
+                            type="button"
+                            onClick={() => handleDeleteAppointment(appointment.id)}
+                          >
+                            מחיקת תור
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                  {upcomingAppointments.length === 0 ? (
+                    <div className="empty-card">אין כרגע תורים עתידיים.</div>
+                  ) : null}
+                </div>
+              </article>
             </div>
           </section>
 
