@@ -65,7 +65,8 @@ type JournalForm = {
 type AppointmentForm = {
   patient_id: string;
   therapist_id: string;
-  appointment_at: string;
+  appointment_date: string;
+  appointment_time: string;
   room: string;
   summary: string;
 };
@@ -89,7 +90,8 @@ const defaultJournalForm: JournalForm = {
 const defaultAppointmentForm: AppointmentForm = {
   patient_id: "",
   therapist_id: "",
-  appointment_at: "",
+  appointment_date: "",
+  appointment_time: "",
   room: "",
   summary: "",
 };
@@ -380,7 +382,11 @@ export function ClinicFlowApp({
 
   async function handleAppointmentSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!appointmentForm.patient_id || !appointmentForm.appointment_at) {
+    if (
+      !appointmentForm.patient_id ||
+      !appointmentForm.appointment_date ||
+      !appointmentForm.appointment_time
+    ) {
       setAppointmentSaveStatus("צריך לבחור מטופל, תאריך ושעה");
       return;
     }
@@ -393,12 +399,14 @@ export function ClinicFlowApp({
       patients.find((patient) => patient.id === appointmentForm.patient_id)?.therapist_id ||
       null;
 
+    const appointmentAt = `${appointmentForm.appointment_date}T${appointmentForm.appointment_time}`;
+
     const { data, error } = await supabase
       .from("appointments")
       .insert({
         patient_id: appointmentForm.patient_id,
         therapist_id: therapistId,
-        appointment_at: appointmentForm.appointment_at,
+        appointment_at: appointmentAt,
         room: appointmentForm.room.trim() || null,
         status: "scheduled",
         summary: appointmentForm.summary.trim() || null,
@@ -797,14 +805,29 @@ export function ClinicFlowApp({
                 </label>
 
                 <label>
-                  תאריך ושעה
+                  תאריך
                   <input
-                    type="datetime-local"
-                    value={appointmentForm.appointment_at}
+                    type="date"
+                    value={appointmentForm.appointment_date}
                     onChange={(event) =>
                       setAppointmentForm((current) => ({
                         ...current,
-                        appointment_at: event.target.value,
+                        appointment_date: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  שעה
+                  <input
+                    type="time"
+                    value={appointmentForm.appointment_time}
+                    onChange={(event) =>
+                      setAppointmentForm((current) => ({
+                        ...current,
+                        appointment_time: event.target.value,
                       }))
                     }
                     required
