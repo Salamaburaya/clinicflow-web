@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabase";
+import { PatientWorkspace } from "@/components/patient-workspace";
 
 type Therapist = {
   id: string;
@@ -241,39 +242,7 @@ export default async function Home() {
           </article>
         </section>
 
-        <section id="patients" className="panel">
-          <div className="section-head">
-            <div>
-              <p className="section-tag">מטופלים</p>
-              <h3>רשומות מטופלים מתוך מסד הנתונים</h3>
-            </div>
-            <span className="muted">טבלת `patients`</span>
-          </div>
-
-          {patients.length === 0 ? (
-            <div className="empty">
-              כרגע יש רק את טבלת המטופלים בלי רשומות. זה אומר שהחיבור עובד, ועכשיו נשאר
-              להוסיף מסך יצירת מטופל או להזין כמה רשומות התחלתיות.
-            </div>
-          ) : (
-            <div className="patient-grid">
-              {patients.map((patient) => (
-                <article key={patient.id} className="person-card">
-                  <strong>{patient.full_name}</strong>
-                  <div className="muted">{patient.diagnosis ?? "אין אבחנה כרגע"}</div>
-                  <div className="chips">
-                    <span className="chip">{patient.discipline}</span>
-                    <span className="chip warm">{patient.status}</span>
-                  </div>
-                  <p className="muted">{patient.treatment_goal ?? "אין יעד טיפולי שהוזן עדיין"}</p>
-                  <div className="muted">
-                    מטפל אחראי: {therapistNameById.get(patient.therapist_id ?? "") ?? "טרם שובץ"}
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+        <PatientWorkspace initialPatients={patients} therapists={therapists} />
       </section>
     </main>
   );

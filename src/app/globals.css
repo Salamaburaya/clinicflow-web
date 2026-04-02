@@ -161,7 +161,9 @@ textarea {
 .panels-grid,
 .team-grid,
 .patient-grid,
-.install-grid {
+.install-grid,
+.workspace-grid,
+.form-grid {
   display: grid;
   gap: 18px;
 }
@@ -184,6 +186,58 @@ textarea {
 
 .install-panel {
   margin-bottom: 18px;
+}
+
+.workspace-panel {
+  margin-top: 18px;
+}
+
+.workspace-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 18px;
+}
+
+.form-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form-grid label,
+.form-field {
+  display: grid;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.full-span {
+  grid-column: 1 / -1;
+}
+
+.form-grid input,
+.form-grid select,
+.form-grid textarea,
+.form-field select {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.history-block {
+  display: grid;
+  gap: 14px;
 }
 
 .panel,
@@ -326,7 +380,9 @@ textarea {
   }
 
   .stats-grid,
-  .panels-grid {
+  .panels-grid,
+  .workspace-grid,
+  .form-grid {
     grid-template-columns: 1fr;
   }
 }
