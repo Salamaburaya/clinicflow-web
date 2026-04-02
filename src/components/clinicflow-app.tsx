@@ -62,6 +62,14 @@ type JournalForm = {
   homeProgram: string;
 };
 
+type AppointmentForm = {
+  patient_id: string;
+  therapist_id: string;
+  appointment_at: string;
+  room: string;
+  summary: string;
+};
+
 const defaultAddPatientForm: AddPatientForm = {
   full_name: "",
   discipline: "פיזיותרפיה",
@@ -76,6 +84,14 @@ const defaultJournalForm: JournalForm = {
   goal: "",
   latestNote: "",
   homeProgram: "",
+};
+
+const defaultAppointmentForm: AppointmentForm = {
+  patient_id: "",
+  therapist_id: "",
+  appointment_at: "",
+  room: "",
+  summary: "",
 };
 
 function buildJournalForm(patient?: Patient): JournalForm {
@@ -110,11 +126,12 @@ function formatJournalDate(value: string) {
 export function ClinicFlowApp({
   therapists,
   initialPatients,
-  appointments,
+  appointments: initialAppointments,
 }: ClinicFlowAppProps) {
   const supabase = useMemo(() => getSupabaseClient(), []);
   const [activeSection, setActiveSection] = useState("dashboard");
   const [patients, setPatients] = useState(initialPatients);
+  const [appointments, setAppointments] = useState(initialAppointments);
   const [search, setSearch] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState(
     initialPatients[0]?.id ?? "",
@@ -128,8 +145,15 @@ export function ClinicFlowApp({
   );
   const [patientSaveStatus, setPatientSaveStatus] = useState("");
   const [journalSaveStatus, setJournalSaveStatus] = useState("");
+  const [appointmentSaveStatus, setAppointmentSaveStatus] = useState("");
   const [isAddingPatient, setIsAddingPatient] = useState(false);
   const [isSavingJournal, setIsSavingJournal] = useState(false);
+  const [isSavingAppointment, setIsSavingAppointment] = useState(false);
+  const [appointmentForm, setAppointmentForm] = useState<AppointmentForm>({
+    ...defaultAppointmentForm,
+    patient_id: initialPatients[0]?.id ?? "",
+    therapist_id: initialPatients[0]?.therapist_id ?? "",
+  });
 
   const therapistNameById = useMemo(
     () => new Map(therapists.map((therapist) => [therapist.id, therapist.full_name])),
@@ -217,6 +241,10 @@ export function ClinicFlowApp({
   }, [initialPatients]);
 
   useEffect(() => {
+    setAppointments(initialAppointments);
+  }, [initialAppointments]);
+
+  useEffect(() => {
     if (!selectedPatient) {
       return;
     }
@@ -274,6 +302,11 @@ export function ClinicFlowApp({
     const insertedPatient = data as Patient;
     setPatients((current) => [insertedPatient, ...current]);
     setSelectedPatientId(insertedPatient.id);
+    setAppointmentForm((current) => ({
+      ...current,
+      patient_id: insertedPatient.id,
+      therapist_id: insertedPatient.therapist_id ?? "",
+    }));
     setAddPatientForm(defaultAddPatientForm);
     setShowPatientDialog(false);
     setActiveSection("patients");
@@ -302,7 +335,9 @@ export function ClinicFlowApp({
 
     if (patientError || !updatedPatient) {
       setIsSavingJournal(false);
-      setJournalSaveStatus("שמירת תיק המטופל נכשלה");
+      setJournalSaveStatus(
+        "שמירת תיק המטופל נכשלה. אם זה ממשיך, כנראה שצריך לאפשר עדכון ב-Supabase.",
+      );
       return;
     }
 
@@ -322,7 +357,9 @@ export function ClinicFlowApp({
 
       if (journalError) {
         setIsSavingJournal(false);
-        setJournalSaveStatus("התיק נשמר, אבל לא ניתן היה לשמור את רשומת היומן");
+        setJournalSaveStatus(
+          "התיק נשמר, אבל לא ניתן היה לשמור את רשומת היומן. ייתכן שחסרה הרשאת Insert ב-Supabase.",
+        );
         return;
       }
 
@@ -341,8 +378,66 @@ export function ClinicFlowApp({
     setJournalSaveStatus("היומן נשמר בהצלחה");
   }
 
+  async function handleAppointmentSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!appointmentForm.patient_id || !appointmentForm.appointment_at) {
+      setAppointmentSaveStatus("צריך לבחור מטופל, תאריך ושעה");
+      return;
+    }
+
+    setIsSavingAppointment(true);
+    setAppointmentSaveStatus("");
+
+    const therapistId =
+      appointmentForm.therapist_id ||
+      patients.find((patient) => patient.id === appointmentForm.patient_id)?.therapist_id ||
+      null;
+
+    const { data, error } = await supabase
+      .from("appointments")
+      .insert({
+        patient_id: appointmentForm.patient_id,
+        therapist_id: therapistId,
+        appointment_at: appointmentForm.appointment_at,
+        room: appointmentForm.room.trim() || null,
+        status: "scheduled",
+        summary: appointmentForm.summary.trim() || null,
+      })
+      .select("*")
+      .single();
+
+    if (error || !data) {
+      setIsSavingAppointment(false);
+      setAppointmentSaveStatus(
+        "קביעת הטיפול נכשלה. כנראה שצריך לאפשר כתיבה לטבלת appointments ב-Supabase.",
+      );
+      return;
+    }
+
+    const nextAppointment = data as Appointment;
+    setAppointments((current) =>
+      [...current, nextAppointment].sort((a, b) =>
+        a.appointment_at.localeCompare(b.appointment_at),
+      ),
+    );
+    setAppointmentForm({
+      ...defaultAppointmentForm,
+      patient_id: appointmentForm.patient_id,
+      therapist_id: therapistId ?? "",
+    });
+    setIsSavingAppointment(false);
+    setAppointmentSaveStatus("הטיפול נקבע בהצלחה");
+    setActiveSection("appointments");
+  }
+
   function handleSelectPatient(patientId: string) {
+    const patient = patients.find((item) => item.id === patientId);
     setSelectedPatientId(patientId);
+    setAppointmentForm((current) => ({
+      ...current,
+      patient_id: patientId,
+      therapist_id: patient?.therapist_id ?? current.therapist_id,
+    }));
     setActiveSection("patients");
     setJournalSaveStatus("");
   }
@@ -650,6 +745,110 @@ export function ClinicFlowApp({
                 <h3>תורים, מטפל אחראי וחדר טיפול</h3>
               </div>
             </div>
+            <article className="card journal-editor">
+              <div className="card-head">
+                <h3>קביעת טיפול חדש</h3>
+                <span>תאריך ושעה</span>
+              </div>
+              <form className="journal-form" onSubmit={handleAppointmentSubmit}>
+                <label>
+                  מטופל
+                  <select
+                    value={appointmentForm.patient_id}
+                    onChange={(event) => {
+                      const patient = patients.find(
+                        (item) => item.id === event.target.value,
+                      );
+                      setAppointmentForm((current) => ({
+                        ...current,
+                        patient_id: event.target.value,
+                        therapist_id: patient?.therapist_id ?? "",
+                      }));
+                    }}
+                    required
+                  >
+                    <option value="">בחר מטופל</option>
+                    {patients.map((patient) => (
+                      <option key={patient.id} value={patient.id}>
+                        {patient.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  מטפל
+                  <select
+                    value={appointmentForm.therapist_id}
+                    onChange={(event) =>
+                      setAppointmentForm((current) => ({
+                        ...current,
+                        therapist_id: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">שיוך אוטומטי לפי המטופל</option>
+                    {therapists.map((therapist) => (
+                      <option key={therapist.id} value={therapist.id}>
+                        {therapist.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  תאריך ושעה
+                  <input
+                    type="datetime-local"
+                    value={appointmentForm.appointment_at}
+                    onChange={(event) =>
+                      setAppointmentForm((current) => ({
+                        ...current,
+                        appointment_at: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  חדר טיפול
+                  <input
+                    type="text"
+                    value={appointmentForm.room}
+                    onChange={(event) =>
+                      setAppointmentForm((current) => ({
+                        ...current,
+                        room: event.target.value,
+                      }))
+                    }
+                    placeholder="למשל: חדר 2"
+                  />
+                </label>
+
+                <label>
+                  הערת טיפול
+                  <textarea
+                    rows={3}
+                    value={appointmentForm.summary}
+                    onChange={(event) =>
+                      setAppointmentForm((current) => ({
+                        ...current,
+                        summary: event.target.value,
+                      }))
+                    }
+                    placeholder="מטרת המפגש או הערה לקראת הטיפול"
+                  />
+                </label>
+
+                <div className="journal-actions">
+                  <button className="primary-btn" type="submit" disabled={isSavingAppointment}>
+                    {isSavingAppointment ? "שומר..." : "קביעת טיפול"}
+                  </button>
+                  <div className="item-meta">{appointmentSaveStatus}</div>
+                </div>
+              </form>
+            </article>
             <div className="timeline">
               {appointments.map((appointment) => (
                 <article key={appointment.id} className="timeline-item">
