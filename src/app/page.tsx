@@ -119,6 +119,23 @@ export default async function Home() {
           </div>
         </div>
 
+        <section className="panel install-panel">
+          <div className="panel-head">
+            <h3>התקנה לטלפון</h3>
+            <span className="muted">PWA מוכן למסך הבית</span>
+          </div>
+          <div className="install-grid">
+            <div className="list-item">
+              <strong>אייפון</strong>
+              <div>פתח את האתר ב-Safari, לחץ על שיתוף ואז `הוסף למסך הבית`.</div>
+            </div>
+            <div className="list-item">
+              <strong>אנדרואיד</strong>
+              <div>פתח את האתר ב-Chrome, לחץ על התפריט ואז `Add to Home screen`.</div>
+            </div>
+          </div>
+        </section>
+
         {errors.length > 0 ? (
           <section className="panel">
             <div className="panel-head">

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,23 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "ClinicFlow | מכון פיזיותרפיה וריפוי בעיסוק",
   description: "מערכת ניהול למכון פיזיותרפיה וריפוי בעיסוק עם חיבור ל-Supabase",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "ClinicFlow",
+  },
+  icons: {
+    apple: "/apple-icon",
+    icon: [
+      { url: "/icon?size=192" },
+      { url: "/icon?size=512" },
+    ],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#146c63",
 };
 
 export default function RootLayout({
