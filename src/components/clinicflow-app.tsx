@@ -65,8 +65,11 @@ type JournalForm = {
 type AppointmentForm = {
   patient_id: string;
   therapist_id: string;
-  appointment_date: string;
-  appointment_time: string;
+  appointment_day: string;
+  appointment_month: string;
+  appointment_year: string;
+  appointment_hour: string;
+  appointment_minute: string;
   room: string;
   summary: string;
 };
@@ -90,8 +93,11 @@ const defaultJournalForm: JournalForm = {
 const defaultAppointmentForm: AppointmentForm = {
   patient_id: "",
   therapist_id: "",
-  appointment_date: "",
-  appointment_time: "",
+  appointment_day: "",
+  appointment_month: "",
+  appointment_year: "",
+  appointment_hour: "",
+  appointment_minute: "00",
   room: "",
   summary: "",
 };
@@ -237,6 +243,21 @@ export function ClinicFlowApp({
       label: patient.full_name,
       value: patient.status === "חדש" ? "דורש אבחון ראשוני" : "מומלץ לתאם המשך טיפול",
     }));
+
+  const dayOptions = Array.from({ length: 31 }, (_, index) =>
+    String(index + 1).padStart(2, "0"),
+  );
+  const monthOptions = Array.from({ length: 12 }, (_, index) =>
+    String(index + 1).padStart(2, "0"),
+  );
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 4 }, (_, index) =>
+    String(currentYear + index),
+  );
+  const hourOptions = Array.from({ length: 13 }, (_, index) =>
+    String(index + 8).padStart(2, "0"),
+  );
+  const minuteOptions = ["00", "15", "30", "45"];
 
   useEffect(() => {
     setPatients(initialPatients);
@@ -384,8 +405,11 @@ export function ClinicFlowApp({
     event.preventDefault();
     if (
       !appointmentForm.patient_id ||
-      !appointmentForm.appointment_date ||
-      !appointmentForm.appointment_time
+      !appointmentForm.appointment_day ||
+      !appointmentForm.appointment_month ||
+      !appointmentForm.appointment_year ||
+      !appointmentForm.appointment_hour ||
+      !appointmentForm.appointment_minute
     ) {
       setAppointmentSaveStatus("צריך לבחור מטופל, תאריך ושעה");
       return;
@@ -399,7 +423,7 @@ export function ClinicFlowApp({
       patients.find((patient) => patient.id === appointmentForm.patient_id)?.therapist_id ||
       null;
 
-    const appointmentAt = `${appointmentForm.appointment_date}T${appointmentForm.appointment_time}`;
+    const appointmentAt = `${appointmentForm.appointment_year}-${appointmentForm.appointment_month}-${appointmentForm.appointment_day}T${appointmentForm.appointment_hour}:${appointmentForm.appointment_minute}`;
 
     const { data, error } = await supabase
       .from("appointments")
@@ -806,38 +830,98 @@ export function ClinicFlowApp({
 
                 <label>
                   תאריך
-                  <input
-                    type="text"
-                    value={appointmentForm.appointment_date}
-                    onChange={(event) =>
-                      setAppointmentForm((current) => ({
-                        ...current,
-                        appointment_date: event.target.value,
-                      }))
-                    }
-                    placeholder="YYYY-MM-DD"
-                    inputMode="numeric"
-                    dir="ltr"
-                    required
-                  />
+                  <div className="select-row">
+                    <select
+                      value={appointmentForm.appointment_day}
+                      onChange={(event) =>
+                        setAppointmentForm((current) => ({
+                          ...current,
+                          appointment_day: event.target.value,
+                        }))
+                      }
+                      required
+                    >
+                      <option value="">יום</option>
+                      {dayOptions.map((day) => (
+                        <option key={day} value={day}>
+                          {day}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={appointmentForm.appointment_month}
+                      onChange={(event) =>
+                        setAppointmentForm((current) => ({
+                          ...current,
+                          appointment_month: event.target.value,
+                        }))
+                      }
+                      required
+                    >
+                      <option value="">חודש</option>
+                      {monthOptions.map((month) => (
+                        <option key={month} value={month}>
+                          {month}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={appointmentForm.appointment_year}
+                      onChange={(event) =>
+                        setAppointmentForm((current) => ({
+                          ...current,
+                          appointment_year: event.target.value,
+                        }))
+                      }
+                      required
+                    >
+                      <option value="">שנה</option>
+                      {yearOptions.map((year) => (
+                        <option key={year} value={year}>
+                          {year}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </label>
 
                 <label>
                   שעה
-                  <input
-                    type="text"
-                    value={appointmentForm.appointment_time}
-                    onChange={(event) =>
-                      setAppointmentForm((current) => ({
-                        ...current,
-                        appointment_time: event.target.value,
-                      }))
-                    }
-                    placeholder="HH:MM"
-                    inputMode="numeric"
-                    dir="ltr"
-                    required
-                  />
+                  <div className="select-row">
+                    <select
+                      value={appointmentForm.appointment_hour}
+                      onChange={(event) =>
+                        setAppointmentForm((current) => ({
+                          ...current,
+                          appointment_hour: event.target.value,
+                        }))
+                      }
+                      required
+                    >
+                      <option value="">שעה</option>
+                      {hourOptions.map((hour) => (
+                        <option key={hour} value={hour}>
+                          {hour}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={appointmentForm.appointment_minute}
+                      onChange={(event) =>
+                        setAppointmentForm((current) => ({
+                          ...current,
+                          appointment_minute: event.target.value,
+                        }))
+                      }
+                      required
+                    >
+                      {minuteOptions.map((minute) => (
+                        <option key={minute} value={minute}>
+                          {minute}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </label>
 
                 <label>
