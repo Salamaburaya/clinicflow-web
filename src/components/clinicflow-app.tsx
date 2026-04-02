@@ -154,6 +154,7 @@ export function ClinicFlowApp({
   const [patientSaveStatus, setPatientSaveStatus] = useState("");
   const [journalSaveStatus, setJournalSaveStatus] = useState("");
   const [appointmentSaveStatus, setAppointmentSaveStatus] = useState("");
+  const [deleteStatus, setDeleteStatus] = useState("");
   const [isAddingPatient, setIsAddingPatient] = useState(false);
   const [isSavingJournal, setIsSavingJournal] = useState(false);
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
@@ -462,6 +463,55 @@ export function ClinicFlowApp({
     setActiveSection("appointments");
   }
 
+  async function handleDeleteAppointment(appointmentId: string) {
+    const confirmed = window.confirm("למחוק את התור הזה?");
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleteStatus("");
+    const { error } = await supabase
+      .from("appointments")
+      .delete()
+      .eq("id", appointmentId);
+
+    if (error) {
+      setDeleteStatus("מחיקת התור נכשלה. צריך לאפשר delete ב-Supabase.");
+      return;
+    }
+
+    setAppointments((current) =>
+      current.filter((appointment) => appointment.id !== appointmentId),
+    );
+    setDeleteStatus("התור נמחק בהצלחה");
+  }
+
+  async function handleDeletePatient(patientId: string) {
+    const patientName =
+      patients.find((patient) => patient.id === patientId)?.full_name ?? "המטופל";
+    const confirmed = window.confirm(`למחוק את ${patientName}?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleteStatus("");
+    const { error } = await supabase.from("patients").delete().eq("id", patientId);
+
+    if (error) {
+      setDeleteStatus("מחיקת המטופל נכשלה. צריך לאפשר delete ב-Supabase.");
+      return;
+    }
+
+    const nextPatients = patients.filter((patient) => patient.id !== patientId);
+    setPatients(nextPatients);
+    setAppointments((current) =>
+      current.filter((appointment) => appointment.patient_id !== patientId),
+    );
+    setJournalEntries([]);
+    setSelectedPatientId(nextPatients[0]?.id ?? "");
+    setDeleteStatus("המטופל נמחק בהצלחה");
+  }
+
   function handleSelectPatient(patientId: string) {
     const patient = patients.find((item) => item.id === patientId);
     setSelectedPatientId(patientId);
@@ -636,6 +686,13 @@ export function ClinicFlowApp({
                   >
                     עריכת יומן המטופל
                   </button>
+                  <button
+                    className="danger-btn"
+                    type="button"
+                    onClick={() => handleDeletePatient(patient.id)}
+                  >
+                    מחיקת מטופל
+                  </button>
                 </article>
               ))}
             </div>
@@ -768,6 +825,7 @@ export function ClinicFlowApp({
                 </div>
               </div>
             </article>
+            {deleteStatus ? <div className="item-meta">{deleteStatus}</div> : null}
           </section>
 
           <section className={`panel ${activeSection === "appointments" ? "active" : ""}`}>
@@ -982,6 +1040,15 @@ export function ClinicFlowApp({
                       </span>
                     </div>
                     <p>{appointment.summary ?? "טרם נכתב סיכום טיפול"}</p>
+                    <div className="appointment-actions">
+                      <button
+                        className="danger-btn"
+                        type="button"
+                        onClick={() => handleDeleteAppointment(appointment.id)}
+                      >
+                        מחיקת תור
+                      </button>
+                    </div>
                   </div>
                 </article>
               ))}
