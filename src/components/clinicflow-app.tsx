@@ -120,6 +120,7 @@ function formatAppointmentTime(value: string) {
   return new Date(value).toLocaleString("he-IL", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Jerusalem",
   });
 }
 
@@ -128,6 +129,7 @@ function formatAppointmentDate(value: string) {
     weekday: "short",
     day: "2-digit",
     month: "2-digit",
+    timeZone: "Asia/Jerusalem",
   });
 }
 
@@ -137,6 +139,29 @@ function formatJournalDate(value: string) {
     month: "2-digit",
     day: "2-digit",
   });
+}
+
+function getAppointmentFormParts(value: string) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(new Date(value));
+  const getPart = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+
+  return {
+    year: getPart("year"),
+    month: getPart("month"),
+    day: getPart("day"),
+    hour: getPart("hour"),
+    minute: getPart("minute"),
+  };
 }
 
 export function ClinicFlowApp({
@@ -463,7 +488,13 @@ export function ClinicFlowApp({
       patients.find((patient) => patient.id === appointmentForm.patient_id)?.therapist_id ||
       null;
 
-    const appointmentAt = `${appointmentForm.appointment_year}-${appointmentForm.appointment_month}-${appointmentForm.appointment_day}T${appointmentForm.appointment_hour}:${appointmentForm.appointment_minute}`;
+    const appointmentAt = new Date(
+      Number(appointmentForm.appointment_year),
+      Number(appointmentForm.appointment_month) - 1,
+      Number(appointmentForm.appointment_day),
+      Number(appointmentForm.appointment_hour),
+      Number(appointmentForm.appointment_minute),
+    ).toISOString();
 
     const payload = {
       patient_id: appointmentForm.patient_id,
@@ -512,17 +543,17 @@ export function ClinicFlowApp({
   }
 
   function handleEditAppointment(appointment: Appointment) {
-    const appointmentDate = new Date(appointment.appointment_at);
+    const appointmentDate = getAppointmentFormParts(appointment.appointment_at);
     setEditingAppointmentId(appointment.id);
     setAppointmentForm({
       patient_id: appointment.patient_id,
       therapist_id: appointment.therapist_id ?? "",
-      appointment_day: String(appointmentDate.getDate()).padStart(2, "0"),
-      appointment_month: String(appointmentDate.getMonth() + 1).padStart(2, "0"),
-      appointment_year: String(appointmentDate.getFullYear()),
-      appointment_hour: String(appointmentDate.getHours()).padStart(2, "0"),
+      appointment_day: appointmentDate.day,
+      appointment_month: appointmentDate.month,
+      appointment_year: appointmentDate.year,
+      appointment_hour: appointmentDate.hour,
       appointment_minute:
-        minuteOptions.find((minute) => minute === String(appointmentDate.getMinutes()).padStart(2, "0")) ??
+        minuteOptions.find((minute) => minute === appointmentDate.minute) ??
         "00",
       room: appointment.room ?? "",
       summary: appointment.summary ?? "",
