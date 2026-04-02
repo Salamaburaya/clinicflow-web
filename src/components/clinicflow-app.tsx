@@ -807,7 +807,7 @@ export function ClinicFlowApp({
                 <label>
                   תאריך
                   <input
-                    type="date"
+                    type="text"
                     value={appointmentForm.appointment_date}
                     onChange={(event) =>
                       setAppointmentForm((current) => ({
@@ -815,6 +815,9 @@ export function ClinicFlowApp({
                         appointment_date: event.target.value,
                       }))
                     }
+                    placeholder="YYYY-MM-DD"
+                    inputMode="numeric"
+                    dir="ltr"
                     required
                   />
                 </label>
@@ -822,7 +825,7 @@ export function ClinicFlowApp({
                 <label>
                   שעה
                   <input
-                    type="time"
+                    type="text"
                     value={appointmentForm.appointment_time}
                     onChange={(event) =>
                       setAppointmentForm((current) => ({
@@ -830,6 +833,9 @@ export function ClinicFlowApp({
                         appointment_time: event.target.value,
                       }))
                     }
+                    placeholder="HH:MM"
+                    inputMode="numeric"
+                    dir="ltr"
                     required
                   />
                 </label>
