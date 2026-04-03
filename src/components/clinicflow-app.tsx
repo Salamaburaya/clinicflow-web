@@ -195,6 +195,7 @@ export function ClinicFlowApp({
   const [showJournalDialog, setShowJournalDialog] = useState(false);
   const [showAppointmentDialog, setShowAppointmentDialog] = useState(false);
   const [showTherapistDialog, setShowTherapistDialog] = useState(false);
+  const [editingTherapistId, setEditingTherapistId] = useState("");
   const [addPatientForm, setAddPatientForm] =
     useState<AddPatientForm>(defaultAddPatientForm);
   const [addTherapistForm, setAddTherapistForm] =
@@ -430,27 +431,78 @@ export function ClinicFlowApp({
     setIsAddingTherapist(true);
     setTherapistSaveStatus("");
 
-    const { data, error } = await supabase
-      .from("therapists")
-      .insert({
-        full_name: addTherapistForm.full_name.trim(),
-        profession: addTherapistForm.profession,
-        specialty: addTherapistForm.specialty.trim() || null,
-      })
-      .select("*")
-      .single();
+    const payload = {
+      full_name: addTherapistForm.full_name.trim(),
+      profession: addTherapistForm.profession,
+      specialty: addTherapistForm.specialty.trim() || null,
+    };
+
+    const query = editingTherapistId
+      ? supabase
+          .from("therapists")
+          .update(payload)
+          .eq("id", editingTherapistId)
+          .select("*")
+          .single()
+      : supabase.from("therapists").insert(payload).select("*").single();
+
+    const { data, error } = await query;
 
     if (error || !data) {
       setIsAddingTherapist(false);
-      setTherapistSaveStatus("הוספת המטפל נכשלה. צריך לאפשר כתיבה ב-Supabase.");
+      setTherapistSaveStatus(
+        editingTherapistId
+          ? "עדכון המטפל נכשל. צריך לאפשר update ב-Supabase."
+          : "הוספת המטפל נכשלה. צריך לאפשר כתיבה ב-Supabase.",
+      );
       return;
     }
 
-    setTherapists((current) => [...current, data as Therapist]);
+    const nextTherapist = data as Therapist;
+    setTherapists((current) => {
+      if (editingTherapistId) {
+        return current.map((therapist) =>
+          therapist.id === nextTherapist.id ? nextTherapist : therapist,
+        );
+      }
+      return [...current, nextTherapist];
+    });
     setAddTherapistForm(defaultAddTherapistForm);
     setShowTherapistDialog(false);
     setIsAddingTherapist(false);
+    setEditingTherapistId("");
     setTherapistSaveStatus("");
+  }
+
+  function handleEditTherapist(therapist: Therapist) {
+    setEditingTherapistId(therapist.id);
+    setAddTherapistForm({
+      full_name: therapist.full_name,
+      profession: therapist.profession,
+      specialty: therapist.specialty ?? "",
+    });
+    setTherapistSaveStatus("");
+    setShowTherapistDialog(true);
+  }
+
+  async function handleDeleteTherapist(therapistId: string) {
+    const therapistName =
+      therapists.find((therapist) => therapist.id === therapistId)?.full_name ?? "המטפל";
+    const confirmed = window.confirm(`למחוק את ${therapistName}?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleteStatus("");
+    const { error } = await supabase.from("therapists").delete().eq("id", therapistId);
+
+    if (error) {
+      setDeleteStatus("מחיקת המטפל נכשלה. צריך לאפשר delete ב-Supabase.");
+      return;
+    }
+
+    setTherapists((current) => current.filter((therapist) => therapist.id !== therapistId));
+    setDeleteStatus("המטפל נמחק בהצלחה");
   }
 
   async function handleJournalSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -1125,7 +1177,12 @@ export function ClinicFlowApp({
               <button
                 className="primary-btn"
                 type="button"
-                onClick={() => setShowTherapistDialog(true)}
+                onClick={() => {
+                  setEditingTherapistId("");
+                  setAddTherapistForm(defaultAddTherapistForm);
+                  setTherapistSaveStatus("");
+                  setShowTherapistDialog(true);
+                }}
               >
                 הוספת מטפל
               </button>
@@ -1140,6 +1197,22 @@ export function ClinicFlowApp({
                   <div>{therapist.specialty ?? "ללא התמחות מוגדרת"}</div>
                   <div className="chips">
                     <span className="chip">צוות פעיל</span>
+                  </div>
+                  <div className="appointment-actions">
+                    <button
+                      className="secondary-btn"
+                      type="button"
+                      onClick={() => handleEditTherapist(therapist)}
+                    >
+                      עריכת מטפל
+                    </button>
+                    <button
+                      className="danger-btn"
+                      type="button"
+                      onClick={() => handleDeleteTherapist(therapist.id)}
+                    >
+                      מחיקת מטפל
+                    </button>
                   </div>
                 </article>
               ))}
@@ -1296,11 +1369,16 @@ export function ClinicFlowApp({
           <div className="dialog-card" onClick={(event) => event.stopPropagation()}>
             <form className="dialog-form" onSubmit={handleAddTherapistSubmit}>
               <div className="dialog-head">
-                <h3>הוספת מטפל</h3>
+                <h3>{editingTherapistId ? "עריכת מטפל" : "הוספת מטפל"}</h3>
                 <button
                   type="button"
                   className="icon-btn"
-                  onClick={() => setShowTherapistDialog(false)}
+                  onClick={() => {
+                    setShowTherapistDialog(false);
+                    setEditingTherapistId("");
+                    setAddTherapistForm(defaultAddTherapistForm);
+                    setTherapistSaveStatus("");
+                  }}
                 >
                   סגירה
                 </button>
@@ -1354,7 +1432,7 @@ export function ClinicFlowApp({
 
               <div className="dialog-actions">
                 <button className="primary-btn" type="submit" disabled={isAddingTherapist}>
-                  {isAddingTherapist ? "שומר..." : "שמירת מטפל"}
+                  {isAddingTherapist ? "שומר..." : editingTherapistId ? "שמירת שינויים" : "שמירת מטפל"}
                 </button>
                 <div className="item-meta">{therapistSaveStatus}</div>
               </div>
