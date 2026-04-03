@@ -42,8 +42,7 @@ async function getDashboardData() {
     supabase
       .from("appointments")
       .select("*")
-      .order("appointment_at", { ascending: true })
-      .limit(6),
+      .order("appointment_at", { ascending: true }),
   ]);
 
   return {

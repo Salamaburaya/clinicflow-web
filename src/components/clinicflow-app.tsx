@@ -382,12 +382,19 @@ export function ClinicFlowApp({
     (appointment) => appointment.patient_id === selectedPatient?.id,
   );
   const nextAppointmentForSelectedPatient = selectedPatientAppointments[0];
-  const todayKey = new Date().toDateString();
+  const today = new Date();
+  const todayKey = today.toDateString();
+  const now = today.getTime();
   const todayAppointments = appointments.filter(
     (appointment) => new Date(appointment.appointment_at).toDateString() === todayKey,
   );
   const upcomingAppointments = appointments.filter(
-    (appointment) => new Date(appointment.appointment_at).toDateString() !== todayKey,
+    (appointment) => new Date(appointment.appointment_at).getTime() > now
+      && new Date(appointment.appointment_at).toDateString() !== todayKey,
+  );
+  const pastAppointments = appointments.filter(
+    (appointment) => new Date(appointment.appointment_at).getTime() < now
+      && new Date(appointment.appointment_at).toDateString() !== todayKey,
   );
   const recentNotices = reminderNotices.filter(isPatientReminderNotice).slice(0, 6);
 
@@ -1444,6 +1451,7 @@ export function ClinicFlowApp({
               <div className="section-tools">
                 <div className="section-summary">היום: {todayAppointments.length} תורים</div>
                 <div className="section-summary">בהמשך: {upcomingAppointments.length} תורים</div>
+                <div className="section-summary">קודמים: {pastAppointments.length} תורים</div>
               </div>
             </div>
             <div className="card appointments-callout">
@@ -1589,6 +1597,76 @@ export function ClinicFlowApp({
                   ))}
                   {upcomingAppointments.length === 0 ? (
                     <div className="empty-card">אין כרגע תורים עתידיים.</div>
+                  ) : null}
+                </div>
+              </article>
+
+              <article className="card">
+                <div className="card-head">
+                  <h4>תורים קודמים</h4>
+                  <span>{pastAppointments.length} תורים</span>
+                </div>
+                <div className="timeline">
+                  {pastAppointments.map((appointment) => (
+                    <article key={appointment.id} className="timeline-item">
+                      <div className="time-block">
+                        <div>{formatAppointmentDate(appointment.appointment_at)}</div>
+                        <div>{formatAppointmentTime(appointment.appointment_at)}</div>
+                      </div>
+                      <div>
+                        <strong>
+                          {appointmentPatientById.get(appointment.patient_id)?.full_name ?? "מטופל לא ידוע"}
+                        </strong>
+                        <div className="chips">
+                          <span className="chip">
+                            {appointmentPatientById.get(appointment.patient_id)?.discipline ?? "ללא תחום"}
+                          </span>
+                          <span className="chip warm">{appointment.room ?? "חדר לא הוגדר"}</span>
+                          <span className="chip chip-muted">
+                            {therapistNameById.get(appointment.therapist_id ?? "") ?? "ללא מטפל"}
+                          </span>
+                        </div>
+                        <p>{appointment.summary ?? "טרם נכתב סיכום טיפול"}</p>
+                        <div className="appointment-actions">
+                          {getAppointmentReminderUrl(appointment) ? (
+                            <a
+                              className="ghost-btn inline-link-btn"
+                              href={getAppointmentReminderUrl(appointment)}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              שלח תזכורת
+                            </a>
+                          ) : (
+                            <div className="item-meta">חסר מספר טלפון לשליחת תזכורת</div>
+                          )}
+                          <button
+                            className="ghost-btn"
+                            type="button"
+                            onClick={() => handleSelectPatient(appointment.patient_id)}
+                          >
+                            פתיחת יומן מטופל
+                          </button>
+                          <button
+                            className="secondary-btn"
+                            type="button"
+                            onClick={() => handleEditAppointment(appointment)}
+                          >
+                            עריכת תור
+                          </button>
+                          <button
+                            className="danger-btn"
+                            type="button"
+                            onClick={() => handleDeleteAppointment(appointment.id)}
+                          >
+                            מחיקת תור
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                  {pastAppointments.length === 0 ? (
+                    <div className="empty-card">אין תורים קודמים.</div>
                   ) : null}
                 </div>
               </article>
