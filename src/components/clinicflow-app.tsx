@@ -234,7 +234,7 @@ function buildWhatsAppUrl(phone?: string | null, message?: string) {
   }
 
   const text = encodeURIComponent(message ?? "");
-  return `https://wa.me/${normalizedPhone}${text ? `?text=${text}` : ""}`;
+  return `https://api.whatsapp.com/send?phone=${normalizedPhone}${text ? `&text=${text}` : ""}`;
 }
 
 export function ClinicFlowApp({
