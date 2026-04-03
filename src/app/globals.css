@@ -90,6 +90,14 @@ button, input, select, textarea { font: inherit; }
   transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
 }
 
+.inline-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10px;
+  text-decoration: none;
+}
+
 .nav-link {
   min-width: 86px;
   padding: 8px 12px;

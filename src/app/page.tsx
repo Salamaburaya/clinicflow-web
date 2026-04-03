@@ -9,6 +9,7 @@ type Therapist = {
   full_name: string;
   profession: string;
   specialty: string | null;
+  phone: string | null;
 };
 
 type Patient = {
@@ -19,6 +20,7 @@ type Patient = {
   diagnosis: string | null;
   treatment_goal: string | null;
   therapist_id: string | null;
+  phone: string | null;
 };
 
 type Appointment = {

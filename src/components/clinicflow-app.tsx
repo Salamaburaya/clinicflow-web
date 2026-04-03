@@ -8,6 +8,7 @@ type Therapist = {
   full_name: string;
   profession: string;
   specialty: string | null;
+  phone?: string | null;
 };
 
 type Patient = {
@@ -18,6 +19,7 @@ type Patient = {
   diagnosis: string | null;
   treatment_goal: string | null;
   therapist_id: string | null;
+  phone?: string | null;
 };
 
 type Appointment = {
@@ -52,6 +54,7 @@ type AddPatientForm = {
   status: string;
   diagnosis: string;
   treatment_goal: string;
+  phone: string;
 };
 
 type JournalForm = {
@@ -60,6 +63,7 @@ type JournalForm = {
   goal: string;
   latestNote: string;
   homeProgram: string;
+  phone: string;
 };
 
 type AppointmentForm = {
@@ -78,6 +82,7 @@ type AddTherapistForm = {
   full_name: string;
   profession: string;
   specialty: string;
+  phone: string;
 };
 
 type ReminderKind = "confirmation" | "24h" | "1h";
@@ -90,6 +95,7 @@ type ReminderNotice = {
   title: string;
   message: string;
   createdAt: string;
+  phone?: string | null;
 };
 
 const defaultAddPatientForm: AddPatientForm = {
@@ -98,6 +104,7 @@ const defaultAddPatientForm: AddPatientForm = {
   status: "חדש",
   diagnosis: "",
   treatment_goal: "",
+  phone: "",
 };
 
 const defaultJournalForm: JournalForm = {
@@ -106,6 +113,7 @@ const defaultJournalForm: JournalForm = {
   goal: "",
   latestNote: "",
   homeProgram: "",
+  phone: "",
 };
 
 const defaultAppointmentForm: AppointmentForm = {
@@ -124,6 +132,7 @@ const defaultAddTherapistForm: AddTherapistForm = {
   full_name: "",
   profession: "פיזיותרפיה",
   specialty: "",
+  phone: "",
 };
 
 const reminderLogStorageKey = "clinicflow-reminder-log-v1";
@@ -140,6 +149,7 @@ function buildJournalForm(patient?: Patient): JournalForm {
     goal: patient.treatment_goal ?? "",
     latestNote: "",
     homeProgram: "",
+    phone: patient.phone ?? "",
   };
 }
 
@@ -199,6 +209,34 @@ function buildReminderLogKey(
   return `${appointmentId}:${kind}:${audience}`;
 }
 
+function normalizeWhatsAppPhone(phone?: string | null) {
+  if (!phone) {
+    return "";
+  }
+
+  const digits = phone.replace(/[^\d+]/g, "");
+  if (digits.startsWith("+")) {
+    return digits.slice(1);
+  }
+  if (digits.startsWith("00")) {
+    return digits.slice(2);
+  }
+  if (digits.startsWith("0")) {
+    return `972${digits.slice(1)}`;
+  }
+  return digits;
+}
+
+function buildWhatsAppUrl(phone?: string | null, message?: string) {
+  const normalizedPhone = normalizeWhatsAppPhone(phone);
+  if (!normalizedPhone) {
+    return "";
+  }
+
+  const text = encodeURIComponent(message ?? "");
+  return `https://wa.me/${normalizedPhone}${text ? `?text=${text}` : ""}`;
+}
+
 export function ClinicFlowApp({
   therapists: initialTherapists,
   initialPatients,
@@ -248,6 +286,10 @@ export function ClinicFlowApp({
 
   const therapistNameById = useMemo(
     () => new Map(therapists.map((therapist) => [therapist.id, therapist.full_name])),
+    [therapists],
+  );
+  const therapistById = useMemo(
+    () => new Map(therapists.map((therapist) => [therapist.id, therapist])),
     [therapists],
   );
 
@@ -437,6 +479,8 @@ export function ClinicFlowApp({
           appointmentPatientById.get(appointment.patient_id)?.full_name ?? "מטופל";
         const therapistName =
           therapistNameById.get(appointment.therapist_id ?? "") ?? "המטפל";
+        const patientPhone = appointmentPatientById.get(appointment.patient_id)?.phone ?? "";
+        const therapistPhone = therapistById.get(appointment.therapist_id ?? "")?.phone ?? "";
 
         const reminderKinds: ReminderKind[] = [];
         if (diffMs > 0 && diffMs <= 24 * 60 * 60 * 1000) {
@@ -460,6 +504,7 @@ export function ClinicFlowApp({
               title: kind === "24h" ? "תזכורת למטפל - 24 שעות" : "תזכורת למטפל - שעה לפני",
               message: `${patientName} קבוע/ה עם ${therapistName} ב-${formatAppointmentDate(appointment.appointment_at)} בשעה ${formatAppointmentTime(appointment.appointment_at)}`,
               createdAt: new Date().toISOString(),
+              phone: therapistPhone,
             });
           }
 
@@ -473,6 +518,7 @@ export function ClinicFlowApp({
               title: kind === "24h" ? "תזכורת למטופל - 24 שעות" : "תזכורת למטופל - שעה לפני",
               message: `${patientName} קבוע/ה לטיפול ב-${formatAppointmentDate(appointment.appointment_at)} בשעה ${formatAppointmentTime(appointment.appointment_at)}`,
               createdAt: new Date().toISOString(),
+              phone: patientPhone,
             });
           }
         });
@@ -491,7 +537,7 @@ export function ClinicFlowApp({
     runReminderCheck();
     const intervalId = window.setInterval(runReminderCheck, 60000);
     return () => window.clearInterval(intervalId);
-  }, [appointments, appointmentPatientById, therapistNameById]);
+  }, [appointments, appointmentPatientById, therapistById, therapistNameById]);
 
   async function handleAddPatientSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -510,6 +556,7 @@ export function ClinicFlowApp({
         diagnosis: addPatientForm.diagnosis.trim() || null,
         treatment_goal: addPatientForm.treatment_goal.trim() || null,
         therapist_id: therapistId,
+        phone: addPatientForm.phone.trim() || null,
       })
       .select("*")
       .single();
@@ -543,6 +590,7 @@ export function ClinicFlowApp({
       full_name: addTherapistForm.full_name.trim(),
       profession: addTherapistForm.profession,
       specialty: addTherapistForm.specialty.trim() || null,
+      phone: addTherapistForm.phone.trim() || null,
     };
 
     const query = editingTherapistId
@@ -588,6 +636,7 @@ export function ClinicFlowApp({
       full_name: therapist.full_name,
       profession: therapist.profession,
       specialty: therapist.specialty ?? "",
+      phone: therapist.phone ?? "",
     });
     setTherapistSaveStatus("");
     setShowTherapistDialog(true);
@@ -628,6 +677,7 @@ export function ClinicFlowApp({
         status: journalForm.status,
         diagnosis: journalForm.diagnosis.trim() || null,
         treatment_goal: journalForm.goal.trim() || null,
+        phone: journalForm.phone.trim() || null,
       })
       .eq("id", selectedPatient.id)
       .select("*")
@@ -749,6 +799,8 @@ export function ClinicFlowApp({
         appointmentPatientById.get(nextAppointment.patient_id)?.full_name ?? "מטופל";
       const therapistName =
         therapistNameById.get(nextAppointment.therapist_id ?? "") ?? "המטפל";
+      const patientPhone = appointmentPatientById.get(nextAppointment.patient_id)?.phone ?? "";
+      const therapistPhone = therapistById.get(nextAppointment.therapist_id ?? "")?.phone ?? "";
 
       const confirmationNotices: ReminderNotice[] = [
         {
@@ -759,6 +811,7 @@ export function ClinicFlowApp({
           title: "אישור קביעת תור למטפל",
           message: `${patientName} נקבע/ה ל-${formatAppointmentDate(nextAppointment.appointment_at)} בשעה ${formatAppointmentTime(nextAppointment.appointment_at)} עם ${therapistName}`,
           createdAt: new Date().toISOString(),
+          phone: therapistPhone,
         },
         {
           id: buildReminderLogKey(nextAppointment.id, "confirmation", "patient"),
@@ -768,6 +821,7 @@ export function ClinicFlowApp({
           title: "אישור קביעת תור למטופל",
           message: `${patientName} קיבל/ה תור ל-${formatAppointmentDate(nextAppointment.appointment_at)} בשעה ${formatAppointmentTime(nextAppointment.appointment_at)}`,
           createdAt: new Date().toISOString(),
+          phone: patientPhone,
         },
       ];
 
@@ -1058,6 +1112,18 @@ export function ClinicFlowApp({
                         {notice.audience === "therapist" ? "למטפל" : "למטופל"} |{" "}
                         {formatJournalDate(notice.createdAt)}
                       </div>
+                      {buildWhatsAppUrl(notice.phone, notice.message) ? (
+                        <a
+                          className="ghost-btn inline-link-btn"
+                          href={buildWhatsAppUrl(notice.phone, notice.message)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          שליחה ב-WhatsApp
+                        </a>
+                      ) : (
+                        <div className="item-meta">חסר מספר טלפון לשליחת WhatsApp</div>
+                      )}
                     </div>
                   ))}
                   {recentNotices.length === 0 ? (
@@ -1362,6 +1428,7 @@ export function ClinicFlowApp({
                     <strong>{therapist.full_name}</strong>
                     <div className="item-meta">{therapist.profession}</div>
                   </div>
+                  <div className="item-meta">{therapist.phone ?? "ללא טלפון"}</div>
                   <div>{therapist.specialty ?? "ללא התמחות מוגדרת"}</div>
                   <div className="chips">
                     <span className="chip">צוות פעיל</span>
@@ -1493,6 +1560,20 @@ export function ClinicFlowApp({
               </label>
 
               <label>
+                טלפון
+                <input
+                  value={addPatientForm.phone}
+                  onChange={(event) =>
+                    setAddPatientForm((current) => ({
+                      ...current,
+                      phone: event.target.value,
+                    }))
+                  }
+                  placeholder="למשל: 0501234567"
+                />
+              </label>
+
+              <label>
                 אבחנה
                 <textarea
                   rows={3}
@@ -1581,6 +1662,20 @@ export function ClinicFlowApp({
                   <option value="פיזיותרפיה">פיזיותרפיה</option>
                   <option value="ריפוי בעיסוק">ריפוי בעיסוק</option>
                 </select>
+              </label>
+
+              <label>
+                טלפון
+                <input
+                  value={addTherapistForm.phone}
+                  onChange={(event) =>
+                    setAddTherapistForm((current) => ({
+                      ...current,
+                      phone: event.target.value,
+                    }))
+                  }
+                  placeholder="למשל: 0501234567"
+                />
               </label>
 
               <label>
@@ -1683,6 +1778,20 @@ export function ClinicFlowApp({
                     <option value="בטיפול">בטיפול</option>
                     <option value="מעקב">מעקב</option>
                   </select>
+                </label>
+
+                <label>
+                  טלפון מטופל
+                  <input
+                    value={journalForm.phone}
+                    onChange={(event) =>
+                      setJournalForm((current) => ({
+                        ...current,
+                        phone: event.target.value,
+                      }))
+                    }
+                    placeholder="למשל: 0501234567"
+                  />
                 </label>
 
                 <label>
