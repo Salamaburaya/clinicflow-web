@@ -1,6 +1,9 @@
 import { ClinicFlowApp } from "@/components/clinicflow-app";
 import { getSupabaseClient } from "@/lib/supabase";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type Therapist = {
   id: string;
   full_name: string;
