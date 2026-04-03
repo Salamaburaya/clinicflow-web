@@ -512,7 +512,25 @@ button, input, select, textarea { font: inherit; }
   }
   .nav-link:hover { color: #18363b; }
   .topbar-summary {
-    display: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+  }
+  .summary-pill {
+    min-width: 0;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+  .summary-pill strong {
+    color: #f5fbfb;
+    font-size: 0.92rem;
+  }
+  .summary-pill span {
+    color: rgba(245, 251, 251, 0.78);
+    font-size: 0.72rem;
   }
   .hero { padding-top: 8px; }
   .hero, .section-head, .timeline-item { grid-template-columns: 1fr; display: grid; }
