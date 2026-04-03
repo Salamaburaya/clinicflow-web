@@ -180,6 +180,7 @@ export function ClinicFlowApp({
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [showPatientDialog, setShowPatientDialog] = useState(false);
   const [showJournalDialog, setShowJournalDialog] = useState(false);
+  const [showAppointmentDialog, setShowAppointmentDialog] = useState(false);
   const [addPatientForm, setAddPatientForm] =
     useState<AddPatientForm>(defaultAddPatientForm);
   const [journalForm, setJournalForm] = useState<JournalForm>(() =>
@@ -538,6 +539,7 @@ export function ClinicFlowApp({
       therapist_id: therapistId ?? "",
     });
     setIsSavingAppointment(false);
+    setShowAppointmentDialog(false);
     setEditingAppointmentId("");
     setAppointmentSaveStatus(editingAppointmentId ? "התור עודכן בהצלחה" : "הטיפול נקבע בהצלחה");
     setActiveSection("appointments");
@@ -560,6 +562,7 @@ export function ClinicFlowApp({
       summary: appointment.summary ?? "",
     });
     setAppointmentSaveStatus("");
+    setShowAppointmentDialog(true);
     setActiveSection("appointments");
   }
 
@@ -664,6 +667,19 @@ export function ClinicFlowApp({
       summary: patient ? `מפגש המשך עבור ${patient.full_name}` : "",
     });
     setAppointmentSaveStatus("");
+    setShowAppointmentDialog(true);
+    setActiveSection("appointments");
+  }
+
+  function handleOpenAppointmentDialog() {
+    setEditingAppointmentId("");
+    setAppointmentForm({
+      ...defaultAppointmentForm,
+      patient_id: selectedPatient?.id ?? "",
+      therapist_id: selectedPatient?.therapist_id ?? "",
+    });
+    setAppointmentSaveStatus("");
+    setShowAppointmentDialog(true);
     setActiveSection("appointments");
   }
 
@@ -728,7 +744,7 @@ export function ClinicFlowApp({
               <button
                 className="secondary-btn"
                 type="button"
-                onClick={() => setActiveSection("appointments")}
+                onClick={handleOpenAppointmentDialog}
               >
                 מעבר ליומן
               </button>
@@ -806,87 +822,73 @@ export function ClinicFlowApp({
               </div>
             </div>
 
-            <div className="patients-grid">
+            <div className="journal-patient-list">
               {filteredPatients.map((patient) => (
-                <article
+                <div
                   key={patient.id}
-                  className={`patient-card ${selectedPatient?.id === patient.id ? "selected" : ""}`}
+                  className={`journal-patient-item patient-option-item ${selectedPatient?.id === patient.id ? "selected" : ""}`}
                 >
                   <div>
                     <strong>{patient.full_name}</strong>
-                    <div className="chips">
-                      <span className="chip">{patient.discipline}</span>
-                      <span className="chip warm">{patient.status}</span>
+                    <div className="item-meta">
+                      {patient.discipline} | {therapistNameById.get(patient.therapist_id ?? "") ?? "ללא מטפל"}
                     </div>
                   </div>
-                  <div>
-                    <div className="item-meta">אבחנה</div>
-                    <div>{patient.diagnosis ?? "טרם הוזנה אבחנה"}</div>
-                  </div>
-                  <div>
-                    <div className="item-meta">יעד טיפולי</div>
-                    <div>{patient.treatment_goal ?? "טרם הוזן יעד טיפולי"}</div>
-                  </div>
-                  <div className="item-meta">
-                    מטפל אחראי: {therapistNameById.get(patient.therapist_id ?? "") ?? "לשיבוץ"}
-                  </div>
-                  <div className="list-item compact-item">
-                    <strong>התור הבא</strong>
-                    <div>
+                  <div className="chips patient-option-chips">
+                    <span className="chip warm">{patient.status}</span>
+                    <span className="chip">
                       {nextAppointmentByPatientId.get(patient.id)
-                        ? `${formatAppointmentDate(
-                            nextAppointmentByPatientId.get(patient.id)!.appointment_at,
-                          )} בשעה ${formatAppointmentTime(
-                            nextAppointmentByPatientId.get(patient.id)!.appointment_at,
-                          )}`
-                        : "עדיין לא נקבע תור"}
-                    </div>
+                        ? `${formatAppointmentDate(nextAppointmentByPatientId.get(patient.id)!.appointment_at)} ${formatAppointmentTime(nextAppointmentByPatientId.get(patient.id)!.appointment_at)}`
+                        : "ללא תור"}
+                    </span>
                   </div>
-                  <label className="inline-field">
-                    שינוי סטטוס
-                    <select
-                      value={statusDrafts[patient.id] ?? patient.status}
-                      onChange={(event) =>
-                        setStatusDrafts((current) => ({
-                          ...current,
-                          [patient.id]: event.target.value,
-                        }))
-                      }
+                  <div className="patient-option-actions">
+                    <label className="inline-field compact-inline-field">
+                      <span className="sr-only">שינוי סטטוס</span>
+                      <select
+                        value={statusDrafts[patient.id] ?? patient.status}
+                        onChange={(event) =>
+                          setStatusDrafts((current) => ({
+                            ...current,
+                            [patient.id]: event.target.value,
+                          }))
+                        }
+                      >
+                        <option value="חדש">חדש</option>
+                        <option value="בטיפול">בטיפול</option>
+                        <option value="מעקב">מעקב</option>
+                      </select>
+                    </label>
+                    <button
+                      className="secondary-btn"
+                      type="button"
+                      onClick={() => handleQuickStatusSave(patient.id)}
                     >
-                      <option value="חדש">חדש</option>
-                      <option value="בטיפול">בטיפול</option>
-                      <option value="מעקב">מעקב</option>
-                    </select>
-                  </label>
-                  <button
-                    className="secondary-btn"
-                    type="button"
-                    onClick={() => handleQuickStatusSave(patient.id)}
-                  >
-                    שמירת סטטוס
-                  </button>
-                  <button
-                    className="ghost-btn"
-                    type="button"
-                    onClick={() => handleSelectPatient(patient.id)}
-                  >
-                    עריכת יומן המטופל
-                  </button>
-                  <button
-                    className="secondary-btn"
-                    type="button"
-                    onClick={() => handleCreateAppointmentForPatient(patient.id)}
-                  >
-                    קביעת טיפול למטופל
-                  </button>
-                  <button
-                    className="danger-btn"
-                    type="button"
-                    onClick={() => handleDeletePatient(patient.id)}
-                  >
-                    מחיקת מטופל
-                  </button>
-                </article>
+                      שמירת סטטוס
+                    </button>
+                    <button
+                      className="ghost-btn"
+                      type="button"
+                      onClick={() => handleSelectPatient(patient.id)}
+                    >
+                      פתיחת יומן
+                    </button>
+                    <button
+                      className="secondary-btn"
+                      type="button"
+                      onClick={() => handleCreateAppointmentForPatient(patient.id)}
+                    >
+                      קביעת טיפול
+                    </button>
+                    <button
+                      className="danger-btn"
+                      type="button"
+                      onClick={() => handleDeletePatient(patient.id)}
+                    >
+                      מחיקת מטופל
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
 
@@ -941,232 +943,15 @@ export function ClinicFlowApp({
                 <div className="section-summary">בהמשך: {upcomingAppointments.length} תורים</div>
               </div>
             </div>
-            <article className="card journal-editor">
-              <div className="card-head">
-                <h3>{editingAppointmentId ? "עריכת תור קיים" : "קביעת טיפול חדש"}</h3>
-                <span>{editingAppointmentId ? "עדכון תאריך, שעה וחדר" : "תאריך ושעה"}</span>
+            <div className="card appointments-callout">
+              <div>
+                <strong>ניהול תורים</strong>
+                <div className="item-meta">לחץ על עריכת תור או על קביעת טיפול כדי לפתוח חלון עריכה.</div>
               </div>
-              {appointmentForm.patient_id ? (
-                <div className="appointment-context">
-                  <div className="summary-card">
-                    <span>מטופל</span>
-                    <strong>
-                      {appointmentPatientById.get(appointmentForm.patient_id)?.full_name ?? "לא נבחר"}
-                    </strong>
-                    <div className="item-meta">
-                      {appointmentPatientById.get(appointmentForm.patient_id)?.discipline ?? "ללא תחום"}
-                    </div>
-                  </div>
-                  <div className="summary-card">
-                    <span>מטפל בפגישה</span>
-                    <strong>
-                      {therapistNameById.get(appointmentForm.therapist_id) ??
-                        therapistNameById.get(
-                          appointmentPatientById.get(appointmentForm.patient_id)?.therapist_id ?? "",
-                        ) ??
-                        "שיבוץ אוטומטי"}
-                    </strong>
-                    <div className="item-meta">אפשר לשנות לפני השמירה</div>
-                  </div>
-                </div>
-              ) : null}
-              <form className="journal-form" onSubmit={handleAppointmentSubmit}>
-                <label>
-                  מטופל
-                  <select
-                    value={appointmentForm.patient_id}
-                    onChange={(event) => {
-                      const patient = patients.find(
-                        (item) => item.id === event.target.value,
-                      );
-                      setAppointmentForm((current) => ({
-                        ...current,
-                        patient_id: event.target.value,
-                        therapist_id: patient?.therapist_id ?? "",
-                      }));
-                    }}
-                    required
-                  >
-                    <option value="">בחר מטופל</option>
-                    {patients.map((patient) => (
-                      <option key={patient.id} value={patient.id}>
-                        {patient.full_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  מטפל
-                  <select
-                    value={appointmentForm.therapist_id}
-                    onChange={(event) =>
-                      setAppointmentForm((current) => ({
-                        ...current,
-                        therapist_id: event.target.value,
-                      }))
-                    }
-                  >
-                    <option value="">שיוך אוטומטי לפי המטופל</option>
-                    {therapists.map((therapist) => (
-                      <option key={therapist.id} value={therapist.id}>
-                        {therapist.full_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  תאריך
-                  <div className="select-row">
-                    <select
-                      value={appointmentForm.appointment_day}
-                      onChange={(event) =>
-                        setAppointmentForm((current) => ({
-                          ...current,
-                          appointment_day: event.target.value,
-                        }))
-                      }
-                      required
-                    >
-                      <option value="">יום</option>
-                      {dayOptions.map((day) => (
-                        <option key={day} value={day}>
-                          {day}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={appointmentForm.appointment_month}
-                      onChange={(event) =>
-                        setAppointmentForm((current) => ({
-                          ...current,
-                          appointment_month: event.target.value,
-                        }))
-                      }
-                      required
-                    >
-                      <option value="">חודש</option>
-                      {monthOptions.map((month) => (
-                        <option key={month} value={month}>
-                          {month}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={appointmentForm.appointment_year}
-                      onChange={(event) =>
-                        setAppointmentForm((current) => ({
-                          ...current,
-                          appointment_year: event.target.value,
-                        }))
-                      }
-                      required
-                    >
-                      <option value="">שנה</option>
-                      {yearOptions.map((year) => (
-                        <option key={year} value={year}>
-                          {year}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </label>
-
-                <label>
-                  שעה
-                  <div className="select-row">
-                    <select
-                      value={appointmentForm.appointment_hour}
-                      onChange={(event) =>
-                        setAppointmentForm((current) => ({
-                          ...current,
-                          appointment_hour: event.target.value,
-                        }))
-                      }
-                      required
-                    >
-                      <option value="">שעה</option>
-                      {hourOptions.map((hour) => (
-                        <option key={hour} value={hour}>
-                          {hour}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={appointmentForm.appointment_minute}
-                      onChange={(event) =>
-                        setAppointmentForm((current) => ({
-                          ...current,
-                          appointment_minute: event.target.value,
-                        }))
-                      }
-                      required
-                    >
-                      {minuteOptions.map((minute) => (
-                        <option key={minute} value={minute}>
-                          {minute}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </label>
-
-                <label>
-                  חדר טיפול
-                  <input
-                    type="text"
-                    value={appointmentForm.room}
-                    onChange={(event) =>
-                      setAppointmentForm((current) => ({
-                        ...current,
-                        room: event.target.value,
-                      }))
-                    }
-                    placeholder="למשל: חדר 2"
-                  />
-                </label>
-
-                <label>
-                  הערת טיפול
-                  <textarea
-                    rows={3}
-                    value={appointmentForm.summary}
-                    onChange={(event) =>
-                      setAppointmentForm((current) => ({
-                        ...current,
-                        summary: event.target.value,
-                      }))
-                    }
-                    placeholder="מטרת המפגש או הערה לקראת הטיפול"
-                  />
-                </label>
-
-                <div className="journal-actions">
-                  <button className="primary-btn" type="submit" disabled={isSavingAppointment}>
-                    {isSavingAppointment ? "שומר..." : editingAppointmentId ? "שמירת שינויים" : "קביעת טיפול"}
-                  </button>
-                  {editingAppointmentId ? (
-                    <button
-                      className="secondary-btn"
-                      type="button"
-                      onClick={() => {
-                        setEditingAppointmentId("");
-                        setAppointmentForm({
-                          ...defaultAppointmentForm,
-                          patient_id: selectedPatient?.id ?? "",
-                          therapist_id: selectedPatient?.therapist_id ?? "",
-                        });
-                        setAppointmentSaveStatus("");
-                      }}
-                    >
-                      ביטול עריכה
-                    </button>
-                  ) : null}
-                  <div className="item-meta">{appointmentSaveStatus}</div>
-                </div>
-              </form>
-            </article>
+              <button className="primary-btn" type="button" onClick={handleOpenAppointmentDialog}>
+                קביעת טיפול חדש
+              </button>
+            </div>
             <div className="appointments-layout">
               <article className="card">
                 <div className="card-head">
@@ -1625,6 +1410,252 @@ export function ClinicFlowApp({
                   ) : null}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showAppointmentDialog ? (
+        <div className="dialog-backdrop" onClick={() => setShowAppointmentDialog(false)}>
+          <div
+            className="dialog-card journal-dialog-card"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="dialog-form">
+              <div className="dialog-head">
+                <div>
+                  <h3>{editingAppointmentId ? "עריכת תור" : "קביעת טיפול חדש"}</h3>
+                  <div className="item-meta">
+                    {editingAppointmentId ? "עדכון תאריך, שעה, חדר והערה" : "בחירת מטופל, תאריך ושעה"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => setShowAppointmentDialog(false)}
+                >
+                  סגירה
+                </button>
+              </div>
+
+              {appointmentForm.patient_id ? (
+                <div className="appointment-context">
+                  <div className="summary-card">
+                    <span>מטופל</span>
+                    <strong>
+                      {appointmentPatientById.get(appointmentForm.patient_id)?.full_name ?? "לא נבחר"}
+                    </strong>
+                    <div className="item-meta">
+                      {appointmentPatientById.get(appointmentForm.patient_id)?.discipline ?? "ללא תחום"}
+                    </div>
+                  </div>
+                  <div className="summary-card">
+                    <span>מטפל בפגישה</span>
+                    <strong>
+                      {therapistNameById.get(appointmentForm.therapist_id) ??
+                        therapistNameById.get(
+                          appointmentPatientById.get(appointmentForm.patient_id)?.therapist_id ?? "",
+                        ) ??
+                        "שיבוץ אוטומטי"}
+                    </strong>
+                    <div className="item-meta">אפשר לשנות לפני השמירה</div>
+                  </div>
+                </div>
+              ) : null}
+
+              <form className="journal-form" onSubmit={handleAppointmentSubmit}>
+                <label>
+                  מטופל
+                  <select
+                    value={appointmentForm.patient_id}
+                    onChange={(event) => {
+                      const patient = patients.find((item) => item.id === event.target.value);
+                      setAppointmentForm((current) => ({
+                        ...current,
+                        patient_id: event.target.value,
+                        therapist_id: patient?.therapist_id ?? "",
+                      }));
+                    }}
+                    required
+                  >
+                    <option value="">בחר מטופל</option>
+                    {patients.map((patient) => (
+                      <option key={patient.id} value={patient.id}>
+                        {patient.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  מטפל
+                  <select
+                    value={appointmentForm.therapist_id}
+                    onChange={(event) =>
+                      setAppointmentForm((current) => ({
+                        ...current,
+                        therapist_id: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">שיוך אוטומטי לפי המטופל</option>
+                    {therapists.map((therapist) => (
+                      <option key={therapist.id} value={therapist.id}>
+                        {therapist.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  תאריך
+                  <div className="select-row">
+                    <select
+                      value={appointmentForm.appointment_day}
+                      onChange={(event) =>
+                        setAppointmentForm((current) => ({
+                          ...current,
+                          appointment_day: event.target.value,
+                        }))
+                      }
+                      required
+                    >
+                      <option value="">יום</option>
+                      {dayOptions.map((day) => (
+                        <option key={day} value={day}>
+                          {day}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={appointmentForm.appointment_month}
+                      onChange={(event) =>
+                        setAppointmentForm((current) => ({
+                          ...current,
+                          appointment_month: event.target.value,
+                        }))
+                      }
+                      required
+                    >
+                      <option value="">חודש</option>
+                      {monthOptions.map((month) => (
+                        <option key={month} value={month}>
+                          {month}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={appointmentForm.appointment_year}
+                      onChange={(event) =>
+                        setAppointmentForm((current) => ({
+                          ...current,
+                          appointment_year: event.target.value,
+                        }))
+                      }
+                      required
+                    >
+                      <option value="">שנה</option>
+                      {yearOptions.map((year) => (
+                        <option key={year} value={year}>
+                          {year}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </label>
+
+                <label>
+                  שעה
+                  <div className="select-row">
+                    <select
+                      value={appointmentForm.appointment_hour}
+                      onChange={(event) =>
+                        setAppointmentForm((current) => ({
+                          ...current,
+                          appointment_hour: event.target.value,
+                        }))
+                      }
+                      required
+                    >
+                      <option value="">שעה</option>
+                      {hourOptions.map((hour) => (
+                        <option key={hour} value={hour}>
+                          {hour}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={appointmentForm.appointment_minute}
+                      onChange={(event) =>
+                        setAppointmentForm((current) => ({
+                          ...current,
+                          appointment_minute: event.target.value,
+                        }))
+                      }
+                      required
+                    >
+                      {minuteOptions.map((minute) => (
+                        <option key={minute} value={minute}>
+                          {minute}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </label>
+
+                <label>
+                  חדר טיפול
+                  <input
+                    type="text"
+                    value={appointmentForm.room}
+                    onChange={(event) =>
+                      setAppointmentForm((current) => ({
+                        ...current,
+                        room: event.target.value,
+                      }))
+                    }
+                    placeholder="למשל: חדר 2"
+                  />
+                </label>
+
+                <label>
+                  הערת טיפול
+                  <textarea
+                    rows={3}
+                    value={appointmentForm.summary}
+                    onChange={(event) =>
+                      setAppointmentForm((current) => ({
+                        ...current,
+                        summary: event.target.value,
+                      }))
+                    }
+                    placeholder="מטרת המפגש או הערה לקראת הטיפול"
+                  />
+                </label>
+
+                <div className="journal-actions">
+                  <button className="primary-btn" type="submit" disabled={isSavingAppointment}>
+                    {isSavingAppointment ? "שומר..." : editingAppointmentId ? "שמירת שינויים" : "קביעת טיפול"}
+                  </button>
+                  <button
+                    className="secondary-btn"
+                    type="button"
+                    onClick={() => {
+                      setEditingAppointmentId("");
+                      setAppointmentForm({
+                        ...defaultAppointmentForm,
+                        patient_id: selectedPatient?.id ?? "",
+                        therapist_id: selectedPatient?.therapist_id ?? "",
+                      });
+                      setAppointmentSaveStatus("");
+                      setShowAppointmentDialog(false);
+                    }}
+                  >
+                    ביטול
+                  </button>
+                  <div className="item-meta">{appointmentSaveStatus}</div>
+                </div>
+              </form>
             </div>
           </div>
         </div>
