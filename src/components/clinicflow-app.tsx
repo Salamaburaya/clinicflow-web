@@ -179,6 +179,7 @@ export function ClinicFlowApp({
   );
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [showPatientDialog, setShowPatientDialog] = useState(false);
+  const [showJournalDialog, setShowJournalDialog] = useState(false);
   const [addPatientForm, setAddPatientForm] =
     useState<AddPatientForm>(defaultAddPatientForm);
   const [journalForm, setJournalForm] = useState<JournalForm>(() =>
@@ -647,7 +648,7 @@ export function ClinicFlowApp({
       patient_id: patientId,
       therapist_id: patient?.therapist_id ?? current.therapist_id,
     }));
-    setActiveSection("patients");
+    setShowJournalDialog(true);
     setJournalSaveStatus("");
   }
 
@@ -893,170 +894,37 @@ export function ClinicFlowApp({
               <div className="section-head">
                 <div>
                   <p className="section-tag">יומן מטופל</p>
-                  <h3>עריכה מהירה של תיק קליני וסיכום טיפול</h3>
+                  <h3>רשימת מטופלים לפתיחת יומן טיפול</h3>
                 </div>
-                <select
-                  value={selectedPatient?.id ?? ""}
-                  onChange={(event) => handleSelectPatient(event.target.value)}
-                >
-                  {patients.map((patient) => (
-                    <option key={patient.id} value={patient.id}>
-                      {patient.full_name} | {patient.discipline}
-                    </option>
-                  ))}
-                </select>
+                <div className="section-summary">לחיצה על מטופל פותחת חלון עריכה ושמירה</div>
               </div>
-
-              {selectedPatient ? (
-                <>
-                  <div className="patient-summary-grid">
-                    <div className="summary-card">
-                      <span>מטופל נבחר</span>
-                      <strong>{selectedPatient.full_name}</strong>
-                      <div className="chips">
-                        <span className="chip">{selectedPatient.discipline}</span>
-                        <span className="chip warm">{selectedPatient.status}</span>
+              <div className="journal-patient-list">
+                {filteredPatients.map((patient) => (
+                  <button
+                    key={patient.id}
+                    type="button"
+                    className="journal-patient-item"
+                    onClick={() => handleSelectPatient(patient.id)}
+                  >
+                    <div>
+                      <strong>{patient.full_name}</strong>
+                      <div className="item-meta">
+                        {patient.discipline} | {therapistNameById.get(patient.therapist_id ?? "") ?? "ללא מטפל"}
                       </div>
                     </div>
-                    <div className="summary-card">
-                      <span>מטפל אחראי</span>
-                      <strong>
-                        {therapistNameById.get(selectedPatient.therapist_id ?? "") ?? "טרם שובץ"}
-                      </strong>
-                      <div className="item-meta">אפשר לשנות מטפל דרך קביעת התור הבא</div>
+                    <div className="chips">
+                      <span className="chip warm">{patient.status}</span>
+                      <span className="chip">
+                        {nextAppointmentByPatientId.get(patient.id)
+                          ? formatAppointmentDate(nextAppointmentByPatientId.get(patient.id)!.appointment_at)
+                          : "ללא תור"}
+                      </span>
                     </div>
-                    <div className="summary-card">
-                      <span>התור הבא</span>
-                      <strong>
-                        {nextAppointmentForSelectedPatient
-                          ? `${formatAppointmentDate(nextAppointmentForSelectedPatient.appointment_at)} | ${formatAppointmentTime(nextAppointmentForSelectedPatient.appointment_at)}`
-                          : "עדיין לא נקבע"}
-                      </strong>
-                      <button
-                        className="ghost-btn summary-action"
-                        type="button"
-                        onClick={() => handleCreateAppointmentForPatient(selectedPatient.id)}
-                      >
-                        קביעת טיפול
-                      </button>
-                    </div>
-                  </div>
-
-                  <form className="journal-form" onSubmit={handleJournalSubmit}>
-                    <label>
-                      סטטוס
-                      <select
-                        value={journalForm.status}
-                        onChange={(event) =>
-                          setJournalForm((current) => ({
-                            ...current,
-                            status: event.target.value,
-                          }))
-                        }
-                        required
-                      >
-                        <option value="חדש">חדש</option>
-                        <option value="בטיפול">בטיפול</option>
-                        <option value="מעקב">מעקב</option>
-                      </select>
-                    </label>
-
-                    <label>
-                      אבחנה
-                      <textarea
-                        rows={3}
-                        value={journalForm.diagnosis}
-                        onChange={(event) =>
-                          setJournalForm((current) => ({
-                            ...current,
-                            diagnosis: event.target.value,
-                          }))
-                        }
-                        required
-                      />
-                    </label>
-
-                    <label>
-                      יעד טיפולי
-                      <textarea
-                        rows={3}
-                        value={journalForm.goal}
-                        onChange={(event) =>
-                          setJournalForm((current) => ({
-                            ...current,
-                            goal: event.target.value,
-                          }))
-                        }
-                        required
-                      />
-                    </label>
-
-                    <label>
-                      סיכום מפגש אחרון
-                      <textarea
-                        rows={5}
-                        value={journalForm.latestNote}
-                        onChange={(event) =>
-                          setJournalForm((current) => ({
-                            ...current,
-                            latestNote: event.target.value,
-                          }))
-                        }
-                        placeholder="אפשר לעדכן כאן את סיכום המפגש האחרון"
-                      />
-                    </label>
-
-                    <label>
-                      המלצות ותרגול לבית
-                      <textarea
-                        rows={3}
-                        value={journalForm.homeProgram}
-                        onChange={(event) =>
-                          setJournalForm((current) => ({
-                            ...current,
-                            homeProgram: event.target.value,
-                          }))
-                        }
-                        placeholder="תרגול בית, המלצות והנחיות"
-                      />
-                    </label>
-
-                    <div className="journal-actions">
-                      <button className="primary-btn" type="submit" disabled={isSavingJournal}>
-                        {isSavingJournal ? "שומר..." : "שמירת יומן"}
-                      </button>
-                      <button
-                        className="secondary-btn"
-                        type="button"
-                        onClick={() => handleCreateAppointmentForPatient(selectedPatient.id)}
-                      >
-                        קביעת טיפול המשך
-                      </button>
-                      <div className="item-meta">{journalSaveStatus}</div>
-                    </div>
-                  </form>
-                </>
-              ) : null}
-
-              <div className="journal-history">
-                <div className="card-head">
-                  <h4>היסטוריית יומן</h4>
-                  <span>שלוש הרשומות האחרונות</span>
-                </div>
-                <div className="stack-list">
-                  {journalEntries.slice(0, 3).map((entry) => (
-                    <div key={entry.id} className="list-item">
-                      <strong>{formatJournalDate(entry.entry_date)}</strong>
-                      <div>{entry.content}</div>
-                    </div>
-                  ))}
-                  {journalEntries.length === 0 ? (
-                    <div className="list-item">
-                      <strong>עדיין אין רשומות</strong>
-                      <div>ברגע שתשמור סיכום טיפול, הוא יופיע כאן.</div>
-                    </div>
-                  ) : null}
-                </div>
+                  </button>
+                ))}
+                {filteredPatients.length === 0 ? (
+                  <div className="empty-card">לא נמצאו מטופלים לפי החיפוש.</div>
+                ) : null}
               </div>
             </article>
             {deleteStatus ? <div className="item-meta">{deleteStatus}</div> : null}
@@ -1579,6 +1447,185 @@ export function ClinicFlowApp({
                 <div className="item-meta">{patientSaveStatus}</div>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {showJournalDialog && selectedPatient ? (
+        <div className="dialog-backdrop" onClick={() => setShowJournalDialog(false)}>
+          <div
+            className="dialog-card journal-dialog-card"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="dialog-form">
+              <div className="dialog-head">
+                <div>
+                  <h3>עריכת יומן טיפול</h3>
+                  <div className="item-meta">{selectedPatient.full_name}</div>
+                </div>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => setShowJournalDialog(false)}
+                >
+                  סגירה
+                </button>
+              </div>
+
+              <div className="patient-summary-grid">
+                <div className="summary-card">
+                  <span>מטופל</span>
+                  <strong>{selectedPatient.full_name}</strong>
+                  <div className="chips">
+                    <span className="chip">{selectedPatient.discipline}</span>
+                    <span className="chip warm">{selectedPatient.status}</span>
+                  </div>
+                </div>
+                <div className="summary-card">
+                  <span>מטפל אחראי</span>
+                  <strong>
+                    {therapistNameById.get(selectedPatient.therapist_id ?? "") ?? "טרם שובץ"}
+                  </strong>
+                  <div className="item-meta">אפשר לקבוע טיפול המשך ישירות מהחלון</div>
+                </div>
+                <div className="summary-card">
+                  <span>התור הבא</span>
+                  <strong>
+                    {nextAppointmentForSelectedPatient
+                      ? `${formatAppointmentDate(nextAppointmentForSelectedPatient.appointment_at)} | ${formatAppointmentTime(nextAppointmentForSelectedPatient.appointment_at)}`
+                      : "עדיין לא נקבע"}
+                  </strong>
+                  <button
+                    className="ghost-btn summary-action"
+                    type="button"
+                    onClick={() => {
+                      setShowJournalDialog(false);
+                      handleCreateAppointmentForPatient(selectedPatient.id);
+                    }}
+                  >
+                    קביעת טיפול
+                  </button>
+                </div>
+              </div>
+
+              <form className="journal-form" onSubmit={handleJournalSubmit}>
+                <label>
+                  סטטוס
+                  <select
+                    value={journalForm.status}
+                    onChange={(event) =>
+                      setJournalForm((current) => ({
+                        ...current,
+                        status: event.target.value,
+                      }))
+                    }
+                    required
+                  >
+                    <option value="חדש">חדש</option>
+                    <option value="בטיפול">בטיפול</option>
+                    <option value="מעקב">מעקב</option>
+                  </select>
+                </label>
+
+                <label>
+                  אבחנה
+                  <textarea
+                    rows={3}
+                    value={journalForm.diagnosis}
+                    onChange={(event) =>
+                      setJournalForm((current) => ({
+                        ...current,
+                        diagnosis: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  יעד טיפולי
+                  <textarea
+                    rows={3}
+                    value={journalForm.goal}
+                    onChange={(event) =>
+                      setJournalForm((current) => ({
+                        ...current,
+                        goal: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  סיכום מפגש אחרון
+                  <textarea
+                    rows={5}
+                    value={journalForm.latestNote}
+                    onChange={(event) =>
+                      setJournalForm((current) => ({
+                        ...current,
+                        latestNote: event.target.value,
+                      }))
+                    }
+                    placeholder="אפשר לעדכן כאן את סיכום המפגש האחרון"
+                  />
+                </label>
+
+                <label>
+                  המלצות ותרגול לבית
+                  <textarea
+                    rows={3}
+                    value={journalForm.homeProgram}
+                    onChange={(event) =>
+                      setJournalForm((current) => ({
+                        ...current,
+                        homeProgram: event.target.value,
+                      }))
+                    }
+                    placeholder="תרגול בית, המלצות והנחיות"
+                  />
+                </label>
+
+                <div className="journal-actions">
+                  <button className="primary-btn" type="submit" disabled={isSavingJournal}>
+                    {isSavingJournal ? "שומר..." : "שמירת יומן"}
+                  </button>
+                  <button
+                    className="secondary-btn"
+                    type="button"
+                    onClick={() => {
+                      setShowJournalDialog(false);
+                      handleCreateAppointmentForPatient(selectedPatient.id);
+                    }}
+                  >
+                    קביעת טיפול המשך
+                  </button>
+                  <div className="item-meta">{journalSaveStatus}</div>
+                </div>
+              </form>
+
+              <div className="journal-history">
+                <div className="card-head">
+                  <h4>היסטוריית יומן</h4>
+                  <span>שלוש הרשומות האחרונות</span>
+                </div>
+                <div className="stack-list">
+                  {journalEntries.slice(0, 3).map((entry) => (
+                    <div key={entry.id} className="list-item">
+                      <strong>{formatJournalDate(entry.entry_date)}</strong>
+                      <div>{entry.content}</div>
+                    </div>
+                  ))}
+                  {journalEntries.length === 0 ? (
+                    <div className="list-item">
+                      <strong>עדיין אין רשומות</strong>
+                      <div>ברגע שתשמור סיכום טיפול, הוא יופיע כאן.</div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
