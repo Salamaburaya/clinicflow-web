@@ -686,19 +686,20 @@ export function ClinicFlowApp({
   return (
     <>
       <main className="page-shell">
-        <aside className="sidebar">
-          <div>
-            <p className="eyebrow">ClinicFlow</p>
-            <h1>ניהול מטופלים, יומן טיפולים וצוות</h1>
-            <p className="intro">מערכת עבודה יומית למכון פיזיותרפיה וריפוי בעיסוק.</p>
-          </div>
+        <section className="content">
+          <header className="topbar">
+            <div className="topbar-copy">
+              <p className="eyebrow">ClinicFlow</p>
+              <h1>ניהול מטופלים, יומן טיפולים וצוות</h1>
+              <p className="intro">מערכת עבודה יומית למכון פיזיותרפיה וריפוי בעיסוק.</p>
+            </div>
 
-          <nav className="sidebar-nav">
-            {[
-              ["dashboard", "לוח בקרה"],
-              ["patients", "מטופלים"],
-              ["appointments", "יומן טיפולים"],
-              ["team", "צוות"],
+            <nav className="top-nav">
+              {[
+                ["dashboard", "לוח בקרה"],
+                ["patients", "מטופלים"],
+                ["appointments", "יומן טיפולים"],
+                ["team", "צוות"],
               ["reports", "דוחות"],
             ].map(([key, label]) => (
               <button
@@ -707,20 +708,24 @@ export function ClinicFlowApp({
                 data-section={key}
                 onClick={() => setActiveSection(key)}
                 type="button"
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
 
-          <section className="highlight-card">
-            <span>היום</span>
-            <strong>{todayAppointments.length} תורים מתוכננים</strong>
-            <p>{patients.length} מטופלים במערכת</p>
-          </section>
-        </aside>
+            <section className="topbar-summary">
+              <div className="summary-pill">
+                <strong>{todayAppointments.length}</strong>
+                <span>תורים היום</span>
+              </div>
+              <div className="summary-pill">
+                <strong>{patients.length}</strong>
+                <span>מטופלים</span>
+              </div>
+            </section>
+          </header>
 
-        <section className="content">
           <section className="hero">
             <div>
               <p className="section-tag">עמוד ראשי</p>
