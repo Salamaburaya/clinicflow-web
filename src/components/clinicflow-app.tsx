@@ -255,22 +255,22 @@ export function ClinicFlowApp({
     {
       label: "מטופלים פעילים",
       value: patients.filter((patient) => patient.status === "בטיפול").length,
-      note: "מטופלים שנמצאים כרגע בסדרה פעילה",
+      note: "בטיפול",
     },
     {
-      label: "תורים קרובים",
+      label: "סה\"כ תורים",
       value: appointments.length,
-      note: "רשומות שנשלפות מהיומן הקרוב",
+      note: "ביומן",
     },
     {
       label: "מטופלים במעקב",
       value: patients.filter((patient) => patient.status === "מעקב").length,
-      note: "דורשים חידוש סדרה או בדיקה נוספת",
+      note: "לבדיקה",
     },
     {
-      label: "צוות מקצועי",
+      label: "מטפלים",
       value: therapists.length,
-      note: "מוחמד חאזקיה וחנין חאזקיה",
+      note: "פעילים",
     },
   ];
 
@@ -689,11 +689,8 @@ export function ClinicFlowApp({
         <aside className="sidebar">
           <div>
             <p className="eyebrow">ClinicFlow</p>
-            <h1>מכון לטיפול שמרגיש מסודר, אנושי וברור.</h1>
-            <p className="intro">
-              גרסה אינטרנטית לאפליקציה לניהול פיזיותרפיה וריפוי בעיסוק: מטופלים,
-              תורים, צוות מטפל, סיכומי מפגש ומעקב התקדמות.
-            </p>
+            <h1>ניהול מטופלים, יומן טיפולים וצוות</h1>
+            <p className="intro">מערכת עבודה יומית למכון פיזיותרפיה וריפוי בעיסוק.</p>
           </div>
 
           <nav className="sidebar-nav">
@@ -717,21 +714,18 @@ export function ClinicFlowApp({
           </nav>
 
           <section className="highlight-card">
-            <span>פוקוס היום</span>
-            <strong>האפליקציה חזרה למבנה המקורי שאהבת</strong>
-            <p>הוספת מטופלים, עריכת יומן וסידור תפעולי באותו מסך.</p>
+            <span>היום</span>
+            <strong>{todayAppointments.length} תורים מתוכננים</strong>
+            <p>{patients.length} מטופלים במערכת</p>
           </section>
         </aside>
 
         <section className="content">
           <section className="hero">
             <div>
-              <p className="section-tag">תפעול יומי</p>
-              <h2>ניהול תורים, תיעוד קליני ומעקב התקדמות במקום אחד</h2>
-              <p>
-                זה אותו מבנה עבודה של הגרסה המקומית הראשונה, רק מחובר למסד נתונים
-                אמיתי ופתוח גם מהטלפון וגם מהמחשב.
-              </p>
+              <p className="section-tag">עמוד ראשי</p>
+              <h2>ניהול שוטף של המטופלים והתורים</h2>
+              <p>בחר פעולה כדי להוסיף מטופל חדש או לקבוע טיפול.</p>
             </div>
             <div className="hero-actions">
               <button
@@ -765,7 +759,7 @@ export function ClinicFlowApp({
             <div className="dashboard-grid">
               <article className="card">
                 <div className="card-head">
-                  <h3>טיפולים קרובים</h3>
+                  <h3>תורים קרובים</h3>
                   <span>היום</span>
                 </div>
                 <div className="stack-list">
@@ -788,8 +782,8 @@ export function ClinicFlowApp({
 
               <article className="card">
                 <div className="card-head">
-                  <h3>משימות צוות</h3>
-                  <span>דורש תשומת לב</span>
+                  <h3>מעקב</h3>
+                  <span>לבדיקה</span>
                 </div>
                 <div className="stack-list">
                   {tasks.map((task) => (
@@ -807,7 +801,7 @@ export function ClinicFlowApp({
             <div className="section-head">
               <div>
                 <p className="section-tag">מאגר מטופלים</p>
-                <h3>תיק מטופל עם סטטוס, אבחנה ויעדים טיפוליים</h3>
+                <h3>מטופלים ואפשרויות פעולה</h3>
               </div>
               <div className="section-tools">
                 <input
@@ -896,9 +890,9 @@ export function ClinicFlowApp({
               <div className="section-head">
                 <div>
                   <p className="section-tag">יומן מטופל</p>
-                  <h3>רשימת מטופלים לפתיחת יומן טיפול</h3>
+                  <h3>בחר מטופל לפתיחת יומן</h3>
                 </div>
-                <div className="section-summary">לחיצה על מטופל פותחת חלון עריכה ושמירה</div>
+                <div className="section-summary">בחירה מהרשימה</div>
               </div>
               <div className="journal-patient-list">
                 {filteredPatients.map((patient) => (
@@ -945,8 +939,8 @@ export function ClinicFlowApp({
             </div>
             <div className="card appointments-callout">
               <div>
-                <strong>ניהול תורים</strong>
-                <div className="item-meta">לחץ על עריכת תור או על קביעת טיפול כדי לפתוח חלון עריכה.</div>
+                <strong>תורים</strong>
+                <div className="item-meta">קביעת תור חדש או עריכת תור קיים</div>
               </div>
               <button className="primary-btn" type="button" onClick={handleOpenAppointmentDialog}>
                 קביעת טיפול חדש
@@ -1095,12 +1089,12 @@ export function ClinicFlowApp({
             <div className="section-head">
               <div>
                 <p className="section-tag">מדדים</p>
-                <h3>תמונת מצב מהירה להנהלה</h3>
+                <h3>סיכום</h3>
               </div>
             </div>
             <div className="reports-grid">
               <article className="card">
-                <h4>פילוח טיפולים</h4>
+                <h4>לפי תחום</h4>
                 <div className="metric-list">
                   {breakdown.map((item) => (
                     <div key={item.label} className="metric-item">
@@ -1271,7 +1265,7 @@ export function ClinicFlowApp({
                   <strong>
                     {therapistNameById.get(selectedPatient.therapist_id ?? "") ?? "טרם שובץ"}
                   </strong>
-                  <div className="item-meta">אפשר לקבוע טיפול המשך ישירות מהחלון</div>
+                  <div className="item-meta">מטפל אחראי</div>
                 </div>
                 <div className="summary-card">
                   <span>התור הבא</span>
@@ -1426,7 +1420,7 @@ export function ClinicFlowApp({
                 <div>
                   <h3>{editingAppointmentId ? "עריכת תור" : "קביעת טיפול חדש"}</h3>
                   <div className="item-meta">
-                    {editingAppointmentId ? "עדכון תאריך, שעה, חדר והערה" : "בחירת מטופל, תאריך ושעה"}
+                    {editingAppointmentId ? "עדכון פרטי התור" : "פרטי התור"}
                   </div>
                 </div>
                 <button
@@ -1458,7 +1452,7 @@ export function ClinicFlowApp({
                         ) ??
                         "שיבוץ אוטומטי"}
                     </strong>
-                    <div className="item-meta">אפשר לשנות לפני השמירה</div>
+                    <div className="item-meta">המטפל בתור</div>
                   </div>
                 </div>
               ) : null}
