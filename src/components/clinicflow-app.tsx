@@ -74,6 +74,12 @@ type AppointmentForm = {
   summary: string;
 };
 
+type AddTherapistForm = {
+  full_name: string;
+  profession: string;
+  specialty: string;
+};
+
 const defaultAddPatientForm: AddPatientForm = {
   full_name: "",
   discipline: "פיזיותרפיה",
@@ -100,6 +106,12 @@ const defaultAppointmentForm: AppointmentForm = {
   appointment_minute: "00",
   room: "",
   summary: "",
+};
+
+const defaultAddTherapistForm: AddTherapistForm = {
+  full_name: "",
+  profession: "פיזיותרפיה",
+  specialty: "",
 };
 
 function buildJournalForm(patient?: Patient): JournalForm {
@@ -165,12 +177,13 @@ function getAppointmentFormParts(value: string) {
 }
 
 export function ClinicFlowApp({
-  therapists,
+  therapists: initialTherapists,
   initialPatients,
   appointments: initialAppointments,
 }: ClinicFlowAppProps) {
   const supabase = useMemo(() => getSupabaseClient(), []);
   const [activeSection, setActiveSection] = useState("dashboard");
+  const [therapists, setTherapists] = useState(initialTherapists);
   const [patients, setPatients] = useState(initialPatients);
   const [appointments, setAppointments] = useState(initialAppointments);
   const [search, setSearch] = useState("");
@@ -181,16 +194,21 @@ export function ClinicFlowApp({
   const [showPatientDialog, setShowPatientDialog] = useState(false);
   const [showJournalDialog, setShowJournalDialog] = useState(false);
   const [showAppointmentDialog, setShowAppointmentDialog] = useState(false);
+  const [showTherapistDialog, setShowTherapistDialog] = useState(false);
   const [addPatientForm, setAddPatientForm] =
     useState<AddPatientForm>(defaultAddPatientForm);
+  const [addTherapistForm, setAddTherapistForm] =
+    useState<AddTherapistForm>(defaultAddTherapistForm);
   const [journalForm, setJournalForm] = useState<JournalForm>(() =>
     buildJournalForm(initialPatients[0]),
   );
   const [patientSaveStatus, setPatientSaveStatus] = useState("");
+  const [therapistSaveStatus, setTherapistSaveStatus] = useState("");
   const [journalSaveStatus, setJournalSaveStatus] = useState("");
   const [appointmentSaveStatus, setAppointmentSaveStatus] = useState("");
   const [deleteStatus, setDeleteStatus] = useState("");
   const [isAddingPatient, setIsAddingPatient] = useState(false);
+  const [isAddingTherapist, setIsAddingTherapist] = useState(false);
   const [isSavingJournal, setIsSavingJournal] = useState(false);
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
   const [editingAppointmentId, setEditingAppointmentId] = useState("");
@@ -324,6 +342,10 @@ export function ClinicFlowApp({
   const minuteOptions = ["00", "15", "30", "45"];
 
   useEffect(() => {
+    setTherapists(initialTherapists);
+  }, [initialTherapists]);
+
+  useEffect(() => {
     setPatients(initialPatients);
     setStatusDrafts(
       Object.fromEntries(initialPatients.map((patient) => [patient.id, patient.status])),
@@ -401,6 +423,34 @@ export function ClinicFlowApp({
     setShowPatientDialog(false);
     setActiveSection("patients");
     setIsAddingPatient(false);
+  }
+
+  async function handleAddTherapistSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsAddingTherapist(true);
+    setTherapistSaveStatus("");
+
+    const { data, error } = await supabase
+      .from("therapists")
+      .insert({
+        full_name: addTherapistForm.full_name.trim(),
+        profession: addTherapistForm.profession,
+        specialty: addTherapistForm.specialty.trim() || null,
+      })
+      .select("*")
+      .single();
+
+    if (error || !data) {
+      setIsAddingTherapist(false);
+      setTherapistSaveStatus("הוספת המטפל נכשלה. צריך לאפשר כתיבה ב-Supabase.");
+      return;
+    }
+
+    setTherapists((current) => [...current, data as Therapist]);
+    setAddTherapistForm(defaultAddTherapistForm);
+    setShowTherapistDialog(false);
+    setIsAddingTherapist(false);
+    setTherapistSaveStatus("");
   }
 
   async function handleJournalSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -1072,6 +1122,13 @@ export function ClinicFlowApp({
                 <p className="section-tag">צוות מקצועי</p>
                 <h3>עומסים, זמינות והתמחויות</h3>
               </div>
+              <button
+                className="primary-btn"
+                type="button"
+                onClick={() => setShowTherapistDialog(true)}
+              >
+                הוספת מטפל
+              </button>
             </div>
             <div className="team-grid">
               {therapists.map((therapist) => (
@@ -1228,6 +1285,78 @@ export function ClinicFlowApp({
                   {isAddingPatient ? "שומר..." : "שמירת מטופל"}
                 </button>
                 <div className="item-meta">{patientSaveStatus}</div>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {showTherapistDialog ? (
+        <div className="dialog-backdrop" onClick={() => setShowTherapistDialog(false)}>
+          <div className="dialog-card" onClick={(event) => event.stopPropagation()}>
+            <form className="dialog-form" onSubmit={handleAddTherapistSubmit}>
+              <div className="dialog-head">
+                <h3>הוספת מטפל</h3>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => setShowTherapistDialog(false)}
+                >
+                  סגירה
+                </button>
+              </div>
+
+              <label>
+                שם מלא
+                <input
+                  value={addTherapistForm.full_name}
+                  onChange={(event) =>
+                    setAddTherapistForm((current) => ({
+                      ...current,
+                      full_name: event.target.value,
+                    }))
+                  }
+                  required
+                />
+              </label>
+
+              <label>
+                מקצוע
+                <select
+                  value={addTherapistForm.profession}
+                  onChange={(event) =>
+                    setAddTherapistForm((current) => ({
+                      ...current,
+                      profession: event.target.value,
+                    }))
+                  }
+                  required
+                >
+                  <option value="פיזיותרפיה">פיזיותרפיה</option>
+                  <option value="ריפוי בעיסוק">ריפוי בעיסוק</option>
+                </select>
+              </label>
+
+              <label>
+                התמחות
+                <textarea
+                  rows={3}
+                  value={addTherapistForm.specialty}
+                  onChange={(event) =>
+                    setAddTherapistForm((current) => ({
+                      ...current,
+                      specialty: event.target.value,
+                    }))
+                  }
+                  placeholder="למשל: שיקום אורתופדי, ויסות חושי"
+                />
+              </label>
+
+              <div className="dialog-actions">
+                <button className="primary-btn" type="submit" disabled={isAddingTherapist}>
+                  {isAddingTherapist ? "שומר..." : "שמירת מטפל"}
+                </button>
+                <div className="item-meta">{therapistSaveStatus}</div>
               </div>
             </form>
           </div>
