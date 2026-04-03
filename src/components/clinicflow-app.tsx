@@ -198,6 +198,14 @@ function isPatientReminderNotice(notice: ReminderNotice) {
   );
 }
 
+function getReminderTitle(kind: ReminderKind) {
+  if (kind === "confirmation") {
+    return "אישור קביעת תור";
+  }
+
+  return "תזכורת למטופל";
+}
+
 function buildJournalForm(patient?: Patient): JournalForm {
   if (!patient) {
     return defaultJournalForm;
@@ -590,8 +598,8 @@ export function ClinicFlowApp({
               appointmentId: appointment.id,
               kind,
               audience: "patient",
-              title: kind === "24h" ? "תזכורת למטופל - 24 שעות" : "תזכורת למטופל - שעה לפני",
-              message: `${patientName} קבוע/ה לטיפול ב-${formatAppointmentDate(appointment.appointment_at)} בשעה ${formatAppointmentTime(appointment.appointment_at)}. המטפל/ת: ${therapistName}`,
+              title: "תזכורת למטופל",
+              message: `שלום ${patientName}, זו תזכורת לטיפול שנקבע עבורך ב-${formatAppointmentDate(appointment.appointment_at)} בשעה ${formatAppointmentTime(appointment.appointment_at)} עם ${therapistName}.`,
               createdAt: new Date().toISOString(),
               phone: patientPhone,
             });
@@ -889,7 +897,7 @@ export function ClinicFlowApp({
           kind: "confirmation",
           audience: "patient",
           title: "אישור קביעת תור למטופל",
-          message: `${patientName} נקבע לך תור לטיפול ב-${formatAppointmentDate(nextAppointment.appointment_at)} בשעה ${formatAppointmentTime(nextAppointment.appointment_at)}. המטפל/ת: ${therapistName}`,
+          message: `שלום ${patientName}, נקבע עבורך טיפול ב-${formatAppointmentDate(nextAppointment.appointment_at)} בשעה ${formatAppointmentTime(nextAppointment.appointment_at)} עם ${therapistName}.`,
           createdAt: new Date().toISOString(),
           phone: patientPhone,
         },
@@ -1085,17 +1093,21 @@ export function ClinicFlowApp({
 
     if (notice.kind === "confirmation") {
       if (notice.audience === "patient") {
-        return `${patientName} נקבע לך תור לטיפול ב-${appointmentDate} בשעה ${appointmentTime}. המטפל/ת: ${therapistName}`;
+        return `שלום ${patientName}, נקבע עבורך טיפול ב-${appointmentDate} בשעה ${appointmentTime} עם ${therapistName}.`;
       }
 
       return `${patientName} נקבע/ה ל-${appointmentDate} בשעה ${appointmentTime} עם ${therapistName}`;
     }
 
     if (notice.audience === "patient") {
-      return `${patientName} קבוע/ה לטיפול ב-${appointmentDate} בשעה ${appointmentTime}. המטפל/ת: ${therapistName}`;
+      return `שלום ${patientName}, זו תזכורת לטיפול שנקבע עבורך ב-${appointmentDate} בשעה ${appointmentTime} עם ${therapistName}.`;
     }
 
     return `${patientName} קבוע/ה עם ${therapistName} ב-${appointmentDate} בשעה ${appointmentTime}`;
+  }
+
+  function getNoticeTitle(notice: ReminderNotice) {
+    return getReminderTitle(notice.kind);
   }
 
   function handleOpenAppointmentDialog() {
@@ -1219,6 +1231,7 @@ export function ClinicFlowApp({
                 <div className="stack-list">
                   {recentNotices.filter(isPatientReminderNotice).map((notice) => {
                     const noticeMessage = getNoticeMessage(notice);
+                    const noticeTitle = getNoticeTitle(notice);
                     const whatsappUrl = buildWhatsAppUrl(
                       getNoticePhone(notice),
                       noticeMessage,
@@ -1226,7 +1239,7 @@ export function ClinicFlowApp({
 
                     return (
                       <div key={notice.id} className="list-item">
-                        <strong>{notice.title}</strong>
+                        <strong>{noticeTitle}</strong>
                         <div>{noticeMessage}</div>
                         <div className="item-meta">
                           {notice.audience === "therapist" ? "למטפל" : "למטופל"} |{" "}
