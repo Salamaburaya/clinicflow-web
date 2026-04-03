@@ -80,6 +80,18 @@ type AddTherapistForm = {
   specialty: string;
 };
 
+type ReminderKind = "confirmation" | "24h" | "1h";
+
+type ReminderNotice = {
+  id: string;
+  appointmentId: string;
+  kind: ReminderKind;
+  audience: "therapist" | "patient";
+  title: string;
+  message: string;
+  createdAt: string;
+};
+
 const defaultAddPatientForm: AddPatientForm = {
   full_name: "",
   discipline: "פיזיותרפיה",
@@ -113,6 +125,9 @@ const defaultAddTherapistForm: AddTherapistForm = {
   profession: "פיזיותרפיה",
   specialty: "",
 };
+
+const reminderLogStorageKey = "clinicflow-reminder-log-v1";
+const reminderItemsStorageKey = "clinicflow-reminder-items-v1";
 
 function buildJournalForm(patient?: Patient): JournalForm {
   if (!patient) {
@@ -176,6 +191,14 @@ function getAppointmentFormParts(value: string) {
   };
 }
 
+function buildReminderLogKey(
+  appointmentId: string,
+  kind: ReminderKind,
+  audience: "therapist" | "patient",
+) {
+  return `${appointmentId}:${kind}:${audience}`;
+}
+
 export function ClinicFlowApp({
   therapists: initialTherapists,
   initialPatients,
@@ -196,6 +219,7 @@ export function ClinicFlowApp({
   const [showAppointmentDialog, setShowAppointmentDialog] = useState(false);
   const [showTherapistDialog, setShowTherapistDialog] = useState(false);
   const [editingTherapistId, setEditingTherapistId] = useState("");
+  const [reminderNotices, setReminderNotices] = useState<ReminderNotice[]>([]);
   const [addPatientForm, setAddPatientForm] =
     useState<AddPatientForm>(defaultAddPatientForm);
   const [addTherapistForm, setAddTherapistForm] =
@@ -269,6 +293,7 @@ export function ClinicFlowApp({
   const upcomingAppointments = appointments.filter(
     (appointment) => new Date(appointment.appointment_at).toDateString() !== todayKey,
   );
+  const recentNotices = reminderNotices.slice(0, 6);
 
   const stats = [
     {
@@ -290,21 +315,6 @@ export function ClinicFlowApp({
       label: "מטפלים",
       value: therapists.length,
       note: "פעילים",
-    },
-  ];
-
-  const tasks = [
-    {
-      title: "השלמת סיכומי טיפול",
-      meta: "לעדכן את רשומות היומן של המפגשים האחרונים",
-    },
-    {
-      title: "קביעת תורי המשך",
-      meta: "מטופלים במעקב שעדיין לא נקבעה להם סדרה חדשה",
-    },
-    {
-      title: "בדיקת תרגול בית",
-      meta: "לעבור על ההמלצות שניתנו ולוודא מעקב",
     },
   ];
 
@@ -347,6 +357,21 @@ export function ClinicFlowApp({
   }, [initialTherapists]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storedNotices = window.localStorage.getItem(reminderItemsStorageKey);
+    if (storedNotices) {
+      try {
+        setReminderNotices(JSON.parse(storedNotices) as ReminderNotice[]);
+      } catch {
+        window.localStorage.removeItem(reminderItemsStorageKey);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     setPatients(initialPatients);
     setStatusDrafts(
       Object.fromEntries(initialPatients.map((patient) => [patient.id, patient.status])),
@@ -384,6 +409,89 @@ export function ClinicFlowApp({
 
     void loadEntries();
   }, [selectedPatient, selectedPatientId, supabase]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const runReminderCheck = () => {
+      const now = Date.now();
+      const rawLog = window.localStorage.getItem(reminderLogStorageKey);
+      let reminderLog: Record<string, string> = {};
+
+      if (rawLog) {
+        try {
+          reminderLog = JSON.parse(rawLog) as Record<string, string>;
+        } catch {
+          reminderLog = {};
+        }
+      }
+
+      const nextNotices: ReminderNotice[] = [];
+
+      appointments.forEach((appointment) => {
+        const appointmentTime = new Date(appointment.appointment_at).getTime();
+        const diffMs = appointmentTime - now;
+        const patientName =
+          appointmentPatientById.get(appointment.patient_id)?.full_name ?? "מטופל";
+        const therapistName =
+          therapistNameById.get(appointment.therapist_id ?? "") ?? "המטפל";
+
+        const reminderKinds: ReminderKind[] = [];
+        if (diffMs > 0 && diffMs <= 24 * 60 * 60 * 1000) {
+          reminderKinds.push("24h");
+        }
+        if (diffMs > 0 && diffMs <= 60 * 60 * 1000) {
+          reminderKinds.push("1h");
+        }
+
+        reminderKinds.forEach((kind) => {
+          const therapistKey = buildReminderLogKey(appointment.id, kind, "therapist");
+          const patientKey = buildReminderLogKey(appointment.id, kind, "patient");
+
+          if (!reminderLog[therapistKey]) {
+            reminderLog[therapistKey] = new Date().toISOString();
+            nextNotices.push({
+              id: therapistKey,
+              appointmentId: appointment.id,
+              kind,
+              audience: "therapist",
+              title: kind === "24h" ? "תזכורת למטפל - 24 שעות" : "תזכורת למטפל - שעה לפני",
+              message: `${patientName} קבוע/ה עם ${therapistName} ב-${formatAppointmentDate(appointment.appointment_at)} בשעה ${formatAppointmentTime(appointment.appointment_at)}`,
+              createdAt: new Date().toISOString(),
+            });
+          }
+
+          if (!reminderLog[patientKey]) {
+            reminderLog[patientKey] = new Date().toISOString();
+            nextNotices.push({
+              id: patientKey,
+              appointmentId: appointment.id,
+              kind,
+              audience: "patient",
+              title: kind === "24h" ? "תזכורת למטופל - 24 שעות" : "תזכורת למטופל - שעה לפני",
+              message: `${patientName} קבוע/ה לטיפול ב-${formatAppointmentDate(appointment.appointment_at)} בשעה ${formatAppointmentTime(appointment.appointment_at)}`,
+              createdAt: new Date().toISOString(),
+            });
+          }
+        });
+      });
+
+      if (nextNotices.length > 0) {
+        setReminderNotices((current) => {
+          const merged = [...nextNotices.reverse(), ...current].slice(0, 30);
+          window.localStorage.setItem(reminderItemsStorageKey, JSON.stringify(merged));
+          return merged;
+        });
+        window.localStorage.setItem(reminderLogStorageKey, JSON.stringify(reminderLog));
+      }
+    };
+
+    runReminderCheck();
+    const intervalId = window.setInterval(runReminderCheck, 60000);
+    return () => window.clearInterval(intervalId);
+  }, [appointments, appointmentPatientById, therapistNameById]);
 
   async function handleAddPatientSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -635,6 +743,56 @@ export function ClinicFlowApp({
         a.appointment_at.localeCompare(b.appointment_at),
       );
     });
+
+    if (typeof window !== "undefined" && !editingAppointmentId) {
+      const patientName =
+        appointmentPatientById.get(nextAppointment.patient_id)?.full_name ?? "מטופל";
+      const therapistName =
+        therapistNameById.get(nextAppointment.therapist_id ?? "") ?? "המטפל";
+
+      const confirmationNotices: ReminderNotice[] = [
+        {
+          id: buildReminderLogKey(nextAppointment.id, "confirmation", "therapist"),
+          appointmentId: nextAppointment.id,
+          kind: "confirmation",
+          audience: "therapist",
+          title: "אישור קביעת תור למטפל",
+          message: `${patientName} נקבע/ה ל-${formatAppointmentDate(nextAppointment.appointment_at)} בשעה ${formatAppointmentTime(nextAppointment.appointment_at)} עם ${therapistName}`,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: buildReminderLogKey(nextAppointment.id, "confirmation", "patient"),
+          appointmentId: nextAppointment.id,
+          kind: "confirmation",
+          audience: "patient",
+          title: "אישור קביעת תור למטופל",
+          message: `${patientName} קיבל/ה תור ל-${formatAppointmentDate(nextAppointment.appointment_at)} בשעה ${formatAppointmentTime(nextAppointment.appointment_at)}`,
+          createdAt: new Date().toISOString(),
+        },
+      ];
+
+      const rawLog = window.localStorage.getItem(reminderLogStorageKey);
+      let reminderLog: Record<string, string> = {};
+      if (rawLog) {
+        try {
+          reminderLog = JSON.parse(rawLog) as Record<string, string>;
+        } catch {
+          reminderLog = {};
+        }
+      }
+
+      confirmationNotices.forEach((notice) => {
+        reminderLog[notice.id] = notice.createdAt;
+      });
+
+      setReminderNotices((current) => {
+        const merged = [...confirmationNotices.reverse(), ...current].slice(0, 30);
+        window.localStorage.setItem(reminderItemsStorageKey, JSON.stringify(merged));
+        return merged;
+      });
+      window.localStorage.setItem(reminderLogStorageKey, JSON.stringify(reminderLog));
+    }
+
     setAppointmentForm({
       ...defaultAppointmentForm,
       patient_id: appointmentForm.patient_id,
@@ -888,16 +1046,26 @@ export function ClinicFlowApp({
 
               <article className="card">
                 <div className="card-head">
-                  <h3>מעקב</h3>
-                  <span>לבדיקה</span>
+                  <h3>התראות</h3>
+                  <span>אחרונות</span>
                 </div>
                 <div className="stack-list">
-                  {tasks.map((task) => (
-                    <div key={task.title} className="list-item">
-                      <strong>{task.title}</strong>
-                      <div className="item-meta">{task.meta}</div>
+                  {recentNotices.map((notice) => (
+                    <div key={notice.id} className="list-item">
+                      <strong>{notice.title}</strong>
+                      <div>{notice.message}</div>
+                      <div className="item-meta">
+                        {notice.audience === "therapist" ? "למטפל" : "למטופל"} |{" "}
+                        {formatJournalDate(notice.createdAt)}
+                      </div>
                     </div>
                   ))}
+                  {recentNotices.length === 0 ? (
+                    <div className="list-item">
+                      <strong>אין התראות כרגע</strong>
+                      <div className="item-meta">התראות על תורים יופיעו כאן אוטומטית.</div>
+                    </div>
+                  ) : null}
                 </div>
               </article>
             </div>
