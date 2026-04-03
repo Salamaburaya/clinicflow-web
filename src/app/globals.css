@@ -476,44 +476,45 @@ button, input, select, textarea { font: inherit; }
   .page-shell { padding: 14px; }
   .topbar {
     top: 8px;
-    padding: 8px 10px;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-  }
-  .topbar-copy {
-    align-items: center;
+    padding: 8px;
+    flex-direction: column;
+    align-items: stretch;
     gap: 6px;
-    min-width: auto;
+    background: linear-gradient(180deg, rgba(28, 62, 68, 0.96), rgba(35, 78, 85, 0.94));
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 18px rgba(16, 36, 40, 0.22);
   }
-  .topbar-copy .eyebrow { margin: 0; }
-  .topbar-copy h1 {
-    font-size: 0.95rem;
-    white-space: nowrap;
-  }
+  .topbar-copy { display: none; }
   .top-nav {
     display: flex;
-    flex: 1;
+    width: 100%;
     overflow-x: auto;
     flex-wrap: nowrap;
-    padding-bottom: 2px;
+    padding-bottom: 0;
     scrollbar-width: none;
+    justify-content: flex-start;
   }
   .top-nav::-webkit-scrollbar { display: none; }
   .nav-link {
-    min-width: 0;
+    min-width: 88px;
     white-space: nowrap;
-    padding: 7px 10px;
-    font-size: 0.82rem;
-    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.8rem;
+    border-radius: 7px;
+    color: rgba(245, 251, 251, 0.86);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.08);
   }
+  .nav-link.active {
+    color: #18363b;
+    background: linear-gradient(180deg, #f1d7ab, #e4c28d);
+    border-color: transparent;
+  }
+  .nav-link:hover { color: #18363b; }
   .topbar-summary {
     display: none;
   }
-  .summary-pill {
-    flex: 1;
-    min-width: 0;
-  }
+  .hero { padding-top: 8px; }
   .hero, .section-head, .timeline-item { grid-template-columns: 1fr; display: grid; }
   .hero-actions { width: 100%; }
   .hero-actions button, .section-head input, .section-head select, .section-tools { width: 100%; }
