@@ -1077,6 +1077,23 @@ export function ClinicFlowApp({
     return therapistById.get(getResolvedTherapistId(appointment, appointmentPatientById))?.phone ?? "";
   }
 
+  function getAppointmentReminderMessage(appointment: Appointment) {
+    const patientName =
+      appointmentPatientById.get(appointment.patient_id)?.full_name ?? "מטופל";
+    const therapistName =
+      therapistById.get(getResolvedTherapistId(appointment, appointmentPatientById))?.full_name ??
+      "המטפל/ת";
+    const appointmentDate = formatAppointmentDate(appointment.appointment_at);
+    const appointmentTime = formatAppointmentTime(appointment.appointment_at);
+
+    return `שלום ${patientName}, זו תזכורת לטיפול שנקבע עבורך ב-${appointmentDate} בשעה ${appointmentTime} עם ${therapistName}.`;
+  }
+
+  function getAppointmentReminderUrl(appointment: Appointment) {
+    const patientPhone = appointmentPatientById.get(appointment.patient_id)?.phone ?? "";
+    return buildWhatsAppUrl(patientPhone, getAppointmentReminderMessage(appointment));
+  }
+
   function getNoticeMessage(notice: ReminderNotice) {
     const appointment = appointmentById.get(notice.appointmentId);
     if (!appointment) {
@@ -1218,6 +1235,18 @@ export function ClinicFlowApp({
                         {appointment.room ?? "חדר לא הוגדר"}
                       </div>
                       <div>{appointment.summary ?? "טרם נכתב סיכום טיפול"}</div>
+                      {getAppointmentReminderUrl(appointment) ? (
+                        <a
+                          className="ghost-btn inline-link-btn"
+                          href={getAppointmentReminderUrl(appointment)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          שלח תזכורת
+                        </a>
+                      ) : (
+                        <div className="item-meta">חסר מספר טלפון לשליחת תזכורת</div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1451,6 +1480,18 @@ export function ClinicFlowApp({
                         </div>
                         <p>{appointment.summary ?? "טרם נכתב סיכום טיפול"}</p>
                         <div className="appointment-actions">
+                          {getAppointmentReminderUrl(appointment) ? (
+                            <a
+                              className="ghost-btn inline-link-btn"
+                              href={getAppointmentReminderUrl(appointment)}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              שלח תזכורת
+                            </a>
+                          ) : (
+                            <div className="item-meta">חסר מספר טלפון לשליחת תזכורת</div>
+                          )}
                           <button
                             className="ghost-btn"
                             type="button"
@@ -1509,6 +1550,18 @@ export function ClinicFlowApp({
                         </div>
                         <p>{appointment.summary ?? "טרם נכתב סיכום טיפול"}</p>
                         <div className="appointment-actions">
+                          {getAppointmentReminderUrl(appointment) ? (
+                            <a
+                              className="ghost-btn inline-link-btn"
+                              href={getAppointmentReminderUrl(appointment)}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              שלח תזכורת
+                            </a>
+                          ) : (
+                            <div className="item-meta">חסר מספר טלפון לשליחת תזכורת</div>
+                          )}
                           <button
                             className="ghost-btn"
                             type="button"
