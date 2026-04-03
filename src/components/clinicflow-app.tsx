@@ -324,6 +324,10 @@ export function ClinicFlowApp({
     });
     return map;
   }, [appointments]);
+  const appointmentById = useMemo(
+    () => new Map(appointments.map((appointment) => [appointment.id, appointment])),
+    [appointments],
+  );
   const selectedPatientAppointments = appointments.filter(
     (appointment) => appointment.patient_id === selectedPatient?.id,
   );
@@ -985,6 +989,23 @@ export function ClinicFlowApp({
     setActiveSection("appointments");
   }
 
+  function getNoticePhone(notice: ReminderNotice) {
+    if (notice.phone) {
+      return notice.phone;
+    }
+
+    const appointment = appointmentById.get(notice.appointmentId);
+    if (!appointment) {
+      return "";
+    }
+
+    if (notice.audience === "patient") {
+      return appointmentPatientById.get(appointment.patient_id)?.phone ?? "";
+    }
+
+    return therapistById.get(appointment.therapist_id ?? "")?.phone ?? "";
+  }
+
   function handleOpenAppointmentDialog() {
     setEditingAppointmentId("");
     setAppointmentForm({
@@ -1112,10 +1133,10 @@ export function ClinicFlowApp({
                         {notice.audience === "therapist" ? "למטפל" : "למטופל"} |{" "}
                         {formatJournalDate(notice.createdAt)}
                       </div>
-                      {buildWhatsAppUrl(notice.phone, notice.message) ? (
+                      {buildWhatsAppUrl(getNoticePhone(notice), notice.message) ? (
                         <a
                           className="ghost-btn inline-link-btn"
-                          href={buildWhatsAppUrl(notice.phone, notice.message)}
+                          href={buildWhatsAppUrl(getNoticePhone(notice), notice.message)}
                           target="_blank"
                           rel="noreferrer"
                         >
