@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeWhatsAppPhone } from "@/lib/phone";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useEffect, useMemo, useState } from "react";
 
@@ -96,6 +97,7 @@ type ReminderNotice = {
   message: string;
   createdAt: string;
   phone?: string | null;
+  sentAt?: string | null;
 };
 
 const defaultAddPatientForm: AddPatientForm = {
@@ -135,8 +137,66 @@ const defaultAddTherapistForm: AddTherapistForm = {
   phone: "",
 };
 
-const reminderLogStorageKey = "clinicflow-reminder-log-v1";
-const reminderItemsStorageKey = "clinicflow-reminder-items-v1";
+const reminderLogStorageKey = "clinicflow-reminder-log-v3";
+const reminderItemsStorageKey = "clinicflow-reminder-items-v3";
+const legacyReminderLogStorageKeys = [
+  "clinicflow-reminder-log-v1",
+  "clinicflow-reminder-log-v2",
+  "clinicflow-reminder-log-v3",
+];
+const legacyReminderItemsStorageKeys = [
+  "clinicflow-reminder-items-v1",
+  "clinicflow-reminder-items-v2",
+  "clinicflow-reminder-items-v3",
+];
+
+function normalizeReminderNotice(notice: ReminderNotice) {
+  return {
+    ...notice,
+    sentAt: notice.sentAt ?? null,
+  };
+}
+
+function persistReminderNoticesToStorage(nextNotices: ReminderNotice[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    reminderItemsStorageKey,
+    JSON.stringify(nextNotices.map(normalizeReminderNotice)),
+  );
+}
+
+function mergeReminderNotices(
+  currentNotices: ReminderNotice[],
+  nextNotices: ReminderNotice[],
+) {
+  const merged = new Map<string, ReminderNotice>();
+
+  [...nextNotices.map(normalizeReminderNotice), ...currentNotices].forEach((notice) => {
+    if (!merged.has(notice.id)) {
+      merged.set(notice.id, notice);
+    }
+  });
+
+  return Array.from(merged.values()).slice(0, 30);
+}
+
+function getResolvedTherapistId(
+  appointment: Appointment,
+  patientsById: Map<string, Patient>,
+) {
+  return appointment.therapist_id ?? patientsById.get(appointment.patient_id)?.therapist_id ?? "";
+}
+
+function isPatientReminderNotice(notice: ReminderNotice) {
+  return (
+    notice.audience === "patient" &&
+    !notice.id.endsWith(":therapist") &&
+    !notice.title.includes("למטפל")
+  );
+}
 
 function buildJournalForm(patient?: Patient): JournalForm {
   if (!patient) {
@@ -207,24 +267,6 @@ function buildReminderLogKey(
   audience: "therapist" | "patient",
 ) {
   return `${appointmentId}:${kind}:${audience}`;
-}
-
-function normalizeWhatsAppPhone(phone?: string | null) {
-  if (!phone) {
-    return "";
-  }
-
-  const digits = phone.replace(/[^\d+]/g, "");
-  if (digits.startsWith("+")) {
-    return digits.slice(1);
-  }
-  if (digits.startsWith("00")) {
-    return digits.slice(2);
-  }
-  if (digits.startsWith("0")) {
-    return `972${digits.slice(1)}`;
-  }
-  return digits;
 }
 
 function buildWhatsAppUrl(phone?: string | null, message?: string) {
@@ -339,7 +381,7 @@ export function ClinicFlowApp({
   const upcomingAppointments = appointments.filter(
     (appointment) => new Date(appointment.appointment_at).toDateString() !== todayKey,
   );
-  const recentNotices = reminderNotices.slice(0, 6);
+  const recentNotices = reminderNotices.filter(isPatientReminderNotice).slice(0, 6);
 
   const stats = [
     {
@@ -398,6 +440,28 @@ export function ClinicFlowApp({
   );
   const minuteOptions = ["00", "15", "30", "45"];
 
+  function prependReminderNotices(nextNotices: ReminderNotice[]) {
+    setReminderNotices((current) => {
+      const cleaned = mergeReminderNotices(current, nextNotices).filter(
+        isPatientReminderNotice,
+      );
+      persistReminderNoticesToStorage(cleaned);
+      return cleaned;
+    });
+  }
+
+  function markReminderNoticeSent(noticeId: string) {
+    const sentAt = new Date().toISOString();
+    setReminderNotices((current) => {
+      const nextNotices = current.map((notice) =>
+        notice.id === noticeId ? { ...notice, sentAt } : notice,
+      );
+      const cleaned = nextNotices.filter(isPatientReminderNotice);
+      persistReminderNoticesToStorage(cleaned);
+      return cleaned;
+    });
+  }
+
   useEffect(() => {
     setTherapists(initialTherapists);
   }, [initialTherapists]);
@@ -407,10 +471,29 @@ export function ClinicFlowApp({
       return;
     }
 
+    legacyReminderLogStorageKeys.forEach((key) => {
+      if (key !== reminderLogStorageKey) {
+        window.localStorage.removeItem(key);
+      }
+    });
+    legacyReminderItemsStorageKeys.forEach((key) => {
+      if (key !== reminderItemsStorageKey) {
+        window.localStorage.removeItem(key);
+      }
+    });
+
     const storedNotices = window.localStorage.getItem(reminderItemsStorageKey);
     if (storedNotices) {
       try {
-        setReminderNotices(JSON.parse(storedNotices) as ReminderNotice[]);
+        const parsed = JSON.parse(storedNotices) as ReminderNotice[];
+        const cleaned = mergeReminderNotices(
+          [],
+          parsed
+            .map(normalizeReminderNotice)
+            .filter(isPatientReminderNotice),
+        );
+        setReminderNotices(cleaned);
+        persistReminderNoticesToStorage(cleaned);
       } catch {
         window.localStorage.removeItem(reminderItemsStorageKey);
       }
@@ -479,12 +562,15 @@ export function ClinicFlowApp({
       appointments.forEach((appointment) => {
         const appointmentTime = new Date(appointment.appointment_at).getTime();
         const diffMs = appointmentTime - now;
+        const resolvedTherapistId = getResolvedTherapistId(
+          appointment,
+          appointmentPatientById,
+        );
         const patientName =
           appointmentPatientById.get(appointment.patient_id)?.full_name ?? "מטופל";
         const therapistName =
-          therapistNameById.get(appointment.therapist_id ?? "") ?? "המטפל";
+          therapistNameById.get(resolvedTherapistId) ?? "המטפל/ת";
         const patientPhone = appointmentPatientById.get(appointment.patient_id)?.phone ?? "";
-        const therapistPhone = therapistById.get(appointment.therapist_id ?? "")?.phone ?? "";
 
         const reminderKinds: ReminderKind[] = [];
         if (diffMs > 0 && diffMs <= 24 * 60 * 60 * 1000) {
@@ -495,22 +581,7 @@ export function ClinicFlowApp({
         }
 
         reminderKinds.forEach((kind) => {
-          const therapistKey = buildReminderLogKey(appointment.id, kind, "therapist");
           const patientKey = buildReminderLogKey(appointment.id, kind, "patient");
-
-          if (!reminderLog[therapistKey]) {
-            reminderLog[therapistKey] = new Date().toISOString();
-            nextNotices.push({
-              id: therapistKey,
-              appointmentId: appointment.id,
-              kind,
-              audience: "therapist",
-              title: kind === "24h" ? "תזכורת למטפל - 24 שעות" : "תזכורת למטפל - שעה לפני",
-              message: `${patientName} קבוע/ה עם ${therapistName} ב-${formatAppointmentDate(appointment.appointment_at)} בשעה ${formatAppointmentTime(appointment.appointment_at)}`,
-              createdAt: new Date().toISOString(),
-              phone: therapistPhone,
-            });
-          }
 
           if (!reminderLog[patientKey]) {
             reminderLog[patientKey] = new Date().toISOString();
@@ -520,7 +591,7 @@ export function ClinicFlowApp({
               kind,
               audience: "patient",
               title: kind === "24h" ? "תזכורת למטופל - 24 שעות" : "תזכורת למטופל - שעה לפני",
-              message: `${patientName} קבוע/ה לטיפול ב-${formatAppointmentDate(appointment.appointment_at)} בשעה ${formatAppointmentTime(appointment.appointment_at)}`,
+              message: `${patientName} קבוע/ה לטיפול ב-${formatAppointmentDate(appointment.appointment_at)} בשעה ${formatAppointmentTime(appointment.appointment_at)}. המטפל/ת: ${therapistName}`,
               createdAt: new Date().toISOString(),
               phone: patientPhone,
             });
@@ -530,9 +601,11 @@ export function ClinicFlowApp({
 
       if (nextNotices.length > 0) {
         setReminderNotices((current) => {
-          const merged = [...nextNotices.reverse(), ...current].slice(0, 30);
-          window.localStorage.setItem(reminderItemsStorageKey, JSON.stringify(merged));
-          return merged;
+          const cleaned = mergeReminderNotices(current, nextNotices).filter(
+            isPatientReminderNotice,
+          );
+          persistReminderNoticesToStorage(cleaned);
+          return cleaned;
         });
         window.localStorage.setItem(reminderLogStorageKey, JSON.stringify(reminderLog));
       }
@@ -799,31 +872,24 @@ export function ClinicFlowApp({
     });
 
     if (typeof window !== "undefined" && !editingAppointmentId) {
+      const resolvedTherapistId = getResolvedTherapistId(
+        nextAppointment,
+        appointmentPatientById,
+      );
       const patientName =
         appointmentPatientById.get(nextAppointment.patient_id)?.full_name ?? "מטופל";
       const therapistName =
-        therapistNameById.get(nextAppointment.therapist_id ?? "") ?? "המטפל";
+        therapistNameById.get(resolvedTherapistId) ?? "המטפל/ת";
       const patientPhone = appointmentPatientById.get(nextAppointment.patient_id)?.phone ?? "";
-      const therapistPhone = therapistById.get(nextAppointment.therapist_id ?? "")?.phone ?? "";
 
       const confirmationNotices: ReminderNotice[] = [
-        {
-          id: buildReminderLogKey(nextAppointment.id, "confirmation", "therapist"),
-          appointmentId: nextAppointment.id,
-          kind: "confirmation",
-          audience: "therapist",
-          title: "אישור קביעת תור למטפל",
-          message: `${patientName} נקבע/ה ל-${formatAppointmentDate(nextAppointment.appointment_at)} בשעה ${formatAppointmentTime(nextAppointment.appointment_at)} עם ${therapistName}`,
-          createdAt: new Date().toISOString(),
-          phone: therapistPhone,
-        },
         {
           id: buildReminderLogKey(nextAppointment.id, "confirmation", "patient"),
           appointmentId: nextAppointment.id,
           kind: "confirmation",
           audience: "patient",
           title: "אישור קביעת תור למטופל",
-          message: `${patientName} קיבל/ה תור ל-${formatAppointmentDate(nextAppointment.appointment_at)} בשעה ${formatAppointmentTime(nextAppointment.appointment_at)}`,
+          message: `${patientName} נקבע לך תור לטיפול ב-${formatAppointmentDate(nextAppointment.appointment_at)} בשעה ${formatAppointmentTime(nextAppointment.appointment_at)}. המטפל/ת: ${therapistName}`,
           createdAt: new Date().toISOString(),
           phone: patientPhone,
         },
@@ -843,12 +909,9 @@ export function ClinicFlowApp({
         reminderLog[notice.id] = notice.createdAt;
       });
 
-      setReminderNotices((current) => {
-        const merged = [...confirmationNotices.reverse(), ...current].slice(0, 30);
-        window.localStorage.setItem(reminderItemsStorageKey, JSON.stringify(merged));
-        return merged;
-      });
+      prependReminderNotices(confirmationNotices);
       window.localStorage.setItem(reminderLogStorageKey, JSON.stringify(reminderLog));
+      setDeleteStatus("התור נקבע. נוצרה התראת WhatsApp מוכנה למטופל.");
     }
 
     setAppointmentForm({
@@ -1003,7 +1066,36 @@ export function ClinicFlowApp({
       return appointmentPatientById.get(appointment.patient_id)?.phone ?? "";
     }
 
-    return therapistById.get(appointment.therapist_id ?? "")?.phone ?? "";
+    return therapistById.get(getResolvedTherapistId(appointment, appointmentPatientById))?.phone ?? "";
+  }
+
+  function getNoticeMessage(notice: ReminderNotice) {
+    const appointment = appointmentById.get(notice.appointmentId);
+    if (!appointment) {
+      return notice.message;
+    }
+
+    const patientName =
+      appointmentPatientById.get(appointment.patient_id)?.full_name ?? "מטופל";
+    const therapistName =
+      therapistById.get(getResolvedTherapistId(appointment, appointmentPatientById))?.full_name ??
+      "המטפל/ת";
+    const appointmentDate = formatAppointmentDate(appointment.appointment_at);
+    const appointmentTime = formatAppointmentTime(appointment.appointment_at);
+
+    if (notice.kind === "confirmation") {
+      if (notice.audience === "patient") {
+        return `${patientName} נקבע לך תור לטיפול ב-${appointmentDate} בשעה ${appointmentTime}. המטפל/ת: ${therapistName}`;
+      }
+
+      return `${patientName} נקבע/ה ל-${appointmentDate} בשעה ${appointmentTime} עם ${therapistName}`;
+    }
+
+    if (notice.audience === "patient") {
+      return `${patientName} קבוע/ה לטיפול ב-${appointmentDate} בשעה ${appointmentTime}. המטפל/ת: ${therapistName}`;
+    }
+
+    return `${patientName} קבוע/ה עם ${therapistName} ב-${appointmentDate} בשעה ${appointmentTime}`;
   }
 
   function handleOpenAppointmentDialog() {
@@ -1125,28 +1217,42 @@ export function ClinicFlowApp({
                   <span>אחרונות</span>
                 </div>
                 <div className="stack-list">
-                  {recentNotices.map((notice) => (
-                    <div key={notice.id} className="list-item">
-                      <strong>{notice.title}</strong>
-                      <div>{notice.message}</div>
-                      <div className="item-meta">
-                        {notice.audience === "therapist" ? "למטפל" : "למטופל"} |{" "}
-                        {formatJournalDate(notice.createdAt)}
+                  {recentNotices.filter(isPatientReminderNotice).map((notice) => {
+                    const noticeMessage = getNoticeMessage(notice);
+                    const whatsappUrl = buildWhatsAppUrl(
+                      getNoticePhone(notice),
+                      noticeMessage,
+                    );
+
+                    return (
+                      <div key={notice.id} className="list-item">
+                        <strong>{notice.title}</strong>
+                        <div>{noticeMessage}</div>
+                        <div className="item-meta">
+                          {notice.audience === "therapist" ? "למטפל" : "למטופל"} |{" "}
+                          {formatJournalDate(notice.createdAt)}
+                        </div>
+                        <div className={`notice-status ${notice.sentAt ? "sent" : "pending"}`}>
+                          {notice.sentAt
+                            ? `סומן כנשלח ב-${formatJournalDate(notice.sentAt)}`
+                            : "ממתין לשליחה"}
+                        </div>
+                        {whatsappUrl ? (
+                          <a
+                            className="ghost-btn inline-link-btn"
+                            href={whatsappUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() => markReminderNoticeSent(notice.id)}
+                          >
+                            שלח WhatsApp
+                          </a>
+                        ) : (
+                          <div className="item-meta">חסר מספר טלפון לשליחת WhatsApp</div>
+                        )}
                       </div>
-                      {buildWhatsAppUrl(getNoticePhone(notice), notice.message) ? (
-                        <a
-                          className="ghost-btn inline-link-btn"
-                          href={buildWhatsAppUrl(getNoticePhone(notice), notice.message)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          שליחה ב-WhatsApp
-                        </a>
-                      ) : (
-                        <div className="item-meta">חסר מספר טלפון לשליחת WhatsApp</div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                   {recentNotices.length === 0 ? (
                     <div className="list-item">
                       <strong>אין התראות כרגע</strong>

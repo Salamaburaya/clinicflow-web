@@ -98,6 +98,25 @@ button, input, select, textarea { font: inherit; }
   text-decoration: none;
 }
 
+.notice-status {
+  margin-top: 10px;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.84rem;
+  border: 1px solid var(--line);
+}
+
+.notice-status.pending {
+  background: rgba(201, 111, 74, 0.12);
+  color: #974021;
+}
+
+.notice-status.sent {
+  background: rgba(20, 108, 99, 0.12);
+  color: var(--accent);
+}
+
 .nav-link {
   min-width: 86px;
   padding: 8px 12px;
