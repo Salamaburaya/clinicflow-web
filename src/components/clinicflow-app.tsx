@@ -690,8 +690,7 @@ export function ClinicFlowApp({
           <header className="topbar">
             <div className="topbar-copy">
               <p className="eyebrow">ClinicFlow</p>
-              <h1>ניהול מטופלים, יומן טיפולים וצוות</h1>
-              <p className="intro">מערכת עבודה יומית למכון פיזיותרפיה וריפוי בעיסוק.</p>
+              <h1>מערכת המכון</h1>
             </div>
 
             <nav className="top-nav">
