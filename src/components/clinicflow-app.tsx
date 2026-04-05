@@ -755,6 +755,7 @@ function persistLocalWorkspaceSnapshot(snapshot: {
   patients: Patient[];
   appointments: Appointment[];
   paymentEntries: PaymentEntry[];
+  journalEntries?: JournalEntry[];
   selectedPatientId: string;
   statusDrafts: Record<string, string>;
 }) {
@@ -1398,6 +1399,7 @@ export function ClinicFlowApp({
         patients?: Patient[];
         appointments?: Appointment[];
         paymentEntries?: PaymentEntry[];
+        journalEntries?: JournalEntry[];
         selectedPatientId?: string;
         statusDrafts?: Record<string, string>;
       };
@@ -1405,7 +1407,8 @@ export function ClinicFlowApp({
         Boolean(snapshot.patients?.length)
         || Boolean(snapshot.therapists?.length)
         || Boolean(snapshot.appointments?.length)
-        || Boolean(snapshot.paymentEntries?.length);
+        || Boolean(snapshot.paymentEntries?.length)
+        || Boolean(snapshot.journalEntries?.length);
 
       if (!hasMeaningfulSnapshot) {
         window.localStorage.removeItem(localWorkspaceStateStorageKey);
@@ -1424,6 +1427,9 @@ export function ClinicFlowApp({
       }
       if (snapshot.paymentEntries) {
         setPaymentEntries(snapshot.paymentEntries);
+      }
+      if (snapshot.journalEntries) {
+        setJournalEntries(snapshot.journalEntries);
       }
       if (snapshot.selectedPatientId) {
         setSelectedPatientId(snapshot.selectedPatientId);
@@ -1480,12 +1486,14 @@ export function ClinicFlowApp({
       patients,
       appointments,
       paymentEntries,
+      journalEntries,
       selectedPatientId,
       statusDrafts,
     });
   }, [
     appointments,
     hasHydratedLocalWorkspace,
+    journalEntries,
     patients,
     paymentEntries,
     selectedPatientId,
@@ -1544,7 +1552,11 @@ export function ClinicFlowApp({
 
     setJournalForm(buildJournalForm(selectedPatient));
 
-    if (bootstrappedClinic && initialPatients.length === 0 && !usingLocalWorkspaceSnapshot) {
+    if (usingLocalWorkspaceSnapshot) {
+      return;
+    }
+
+    if (bootstrappedClinic && initialPatients.length === 0) {
       setJournalEntries(
         bootstrappedClinic.journalEntries.filter(
           (entry) => entry.patient_id === selectedPatient.id,
@@ -1563,7 +1575,6 @@ export function ClinicFlowApp({
         .limit(6);
 
       if (error) {
-        setJournalEntries([]);
         setJournalSaveStatus("לא ניתן לטעון את היסטוריית היומן כרגע");
         return;
       }
@@ -1858,31 +1869,34 @@ export function ClinicFlowApp({
     setIsSavingJournal(true);
     setJournalSaveStatus("");
 
+    const patientPayload = {
+      status: journalForm.status,
+      diagnosis: journalForm.diagnosis.trim() || null,
+      treatment_goal: journalForm.goal.trim() || null,
+      phone: journalForm.phone.trim() || null,
+    };
+
     const { data: updatedPatient, error: patientError } = await supabase
       .from("patients")
-      .update({
-        status: journalForm.status,
-        diagnosis: journalForm.diagnosis.trim() || null,
-        treatment_goal: journalForm.goal.trim() || null,
-        phone: journalForm.phone.trim() || null,
-      })
+      .update(patientPayload)
       .eq("id", selectedPatient.id)
       .select("*")
       .single();
-
-    if (patientError || !updatedPatient) {
-      setIsSavingJournal(false);
-      setJournalSaveStatus(
-        "שמירת תיק המטופל נכשלה. אם זה ממשיך, כנראה שצריך לאפשר עדכון ב-Supabase.",
-      );
-      return;
-    }
+    const patientSavedToSupabase = !patientError && Boolean(updatedPatient);
 
     let insertedEntry: JournalEntry | null = null;
+    let journalSavedToSupabase = false;
     const noteContent = buildStructuredJournalNote(
       journalForm,
       selectedPatient.discipline,
     ).trim();
+
+    const nextPatient = patientError || !updatedPatient
+      ? {
+          ...selectedPatient,
+          ...patientPayload,
+        }
+      : (updatedPatient as Patient);
 
     if (noteContent) {
       const { data: journalData, error: journalError } = await supabase
@@ -1895,28 +1909,54 @@ export function ClinicFlowApp({
         })
         .select("*")
         .single();
+      journalSavedToSupabase = !journalError && Boolean(journalData);
 
-      if (journalError) {
-        setIsSavingJournal(false);
-        setJournalSaveStatus(
-          "התיק נשמר, אבל לא ניתן היה לשמור את רשומת היומן. ייתכן שחסרה הרשאת Insert ב-Supabase.",
-        );
-        return;
-      }
-
-      insertedEntry = journalData as JournalEntry;
+      insertedEntry = !journalSavedToSupabase
+        ? {
+            id: crypto.randomUUID(),
+            patient_id: selectedPatient.id,
+            therapist_id: selectedPatient.therapist_id,
+            entry_date: new Date().toISOString().slice(0, 10),
+            content: noteContent,
+            home_program: journalForm.homeProgram.trim() || null,
+            created_at: new Date().toISOString(),
+          }
+        : (journalData as JournalEntry);
     }
 
-    const nextPatient = updatedPatient as Patient;
-    setPatients((current) =>
-      current.map((patient) => (patient.id === nextPatient.id ? nextPatient : patient)),
+    const nextPatients = patients.map((patient) =>
+      patient.id === nextPatient.id ? nextPatient : patient,
     );
+    const nextJournalEntries = insertedEntry
+      ? [insertedEntry as JournalEntry, ...journalEntries]
+      : journalEntries;
+
+    setPatients(nextPatients);
     setJournalForm(buildJournalForm(nextPatient));
     if (insertedEntry) {
-      setJournalEntries((current) => [insertedEntry as JournalEntry, ...current]);
+      setJournalEntries(nextJournalEntries);
     }
+    persistLocalWorkspaceSnapshot({
+      therapists,
+      patients: nextPatients,
+      appointments,
+      paymentEntries,
+      journalEntries: nextJournalEntries,
+      selectedPatientId,
+      statusDrafts,
+    });
     setIsSavingJournal(false);
-    setJournalSaveStatus("היומן נשמר בהצלחה");
+    setJournalSaveStatus(
+      !patientSavedToSupabase
+        ? insertedEntry && noteContent
+          ? "היומן נשמר מקומית. עדכון Supabase למטופל לא הצליח כרגע."
+          : "פרטי היומן נשמרו מקומית, אבל עדכון Supabase למטופל לא הצליח."
+        : insertedEntry && noteContent
+          ? journalSavedToSupabase
+            ? "היומן נשמר בהצלחה"
+            : "רשומת היומן נשמרה מקומית, למרות ש-Supabase לא קיבל את הרשומה."
+          : "תיק המטופל עודכן בהצלחה",
+    );
   }
 
   async function handleAppointmentSubmit(event: React.FormEvent<HTMLFormElement>) {
