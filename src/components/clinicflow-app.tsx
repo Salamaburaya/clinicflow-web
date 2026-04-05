@@ -665,6 +665,21 @@ function persistReminderNoticesToStorage(nextNotices: ReminderNotice[]) {
   );
 }
 
+function persistLocalWorkspaceSnapshot(snapshot: {
+  therapists: Therapist[];
+  patients: Patient[];
+  appointments: Appointment[];
+  paymentEntries: PaymentEntry[];
+  selectedPatientId: string;
+  statusDrafts: Record<string, string>;
+}) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(localWorkspaceStateStorageKey, JSON.stringify(snapshot));
+}
+
 function mergeReminderNotices(
   currentNotices: ReminderNotice[],
   nextNotices: ReminderNotice[],
@@ -1357,17 +1372,14 @@ export function ClinicFlowApp({
       return;
     }
 
-    window.localStorage.setItem(
-      localWorkspaceStateStorageKey,
-      JSON.stringify({
-        therapists,
-        patients,
-        appointments,
-        paymentEntries,
-        selectedPatientId,
-        statusDrafts,
-      }),
-    );
+    persistLocalWorkspaceSnapshot({
+      therapists,
+      patients,
+      appointments,
+      paymentEntries,
+      selectedPatientId,
+      statusDrafts,
+    });
   }, [
     appointments,
     hasHydratedLocalWorkspace,
@@ -2256,17 +2268,26 @@ export function ClinicFlowApp({
       note: note.trim() || null,
     };
 
-    setPaymentEntries((current) => [nextEntry, ...current]);
-    setPatients((current) =>
-      current.map((patient) =>
-        patient.id === patientId
-          ? {
-              ...patient,
-              payment_balance: (patient.payment_balance ?? 0) - normalizedAmount,
-            }
-          : patient,
-      ),
+    const nextPaymentEntries = [nextEntry, ...paymentEntries];
+    const nextPatients = patients.map((patient) =>
+      patient.id === patientId
+        ? {
+            ...patient,
+            payment_balance: (patient.payment_balance ?? 0) - normalizedAmount,
+          }
+        : patient,
     );
+
+    setPaymentEntries(nextPaymentEntries);
+    setPatients(nextPatients);
+    persistLocalWorkspaceSnapshot({
+      therapists,
+      patients: nextPatients,
+      appointments,
+      paymentEntries: nextPaymentEntries,
+      selectedPatientId,
+      statusDrafts,
+    });
   }
 
   function handleUpdatePayment({
@@ -2289,36 +2310,40 @@ export function ClinicFlowApp({
       return;
     }
 
-    setPaymentEntries((current) =>
-      current.map((entry) =>
-        entry.id === paymentId
-          ? {
-              ...entry,
-              amount: normalizedAmount,
-              method,
-              category,
-              note: note.trim() || null,
-            }
-          : entry,
-      ),
+    const nextPaymentEntries = paymentEntries.map((entry) =>
+      entry.id === paymentId
+        ? {
+            ...entry,
+            amount: normalizedAmount,
+            method,
+            category,
+            note: note.trim() || null,
+          }
+        : entry,
     );
 
     const delta = normalizedAmount - existingPayment.amount;
-
-    if (delta === 0) {
-      return;
-    }
-
-    setPatients((current) =>
-      current.map((patient) =>
-        patient.id === patientId
-          ? {
-              ...patient,
-              payment_balance: (patient.payment_balance ?? 0) - delta,
-            }
-          : patient,
-      ),
+    const nextPatients = patients.map((patient) =>
+      patient.id === patientId
+        ? {
+            ...patient,
+            payment_balance: delta === 0
+              ? patient.payment_balance ?? 0
+              : (patient.payment_balance ?? 0) - delta,
+          }
+        : patient,
     );
+
+    setPaymentEntries(nextPaymentEntries);
+    setPatients(nextPatients);
+    persistLocalWorkspaceSnapshot({
+      therapists,
+      patients: nextPatients,
+      appointments,
+      paymentEntries: nextPaymentEntries,
+      selectedPatientId,
+      statusDrafts,
+    });
   }
 
   function handleJournalTemplateAnswerChange(fieldKey: string, value: string) {
