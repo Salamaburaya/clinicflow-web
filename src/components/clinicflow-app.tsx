@@ -2008,21 +2008,27 @@ export function ClinicFlowApp({
       : supabase.from("appointments").insert(payload).select("*").single();
 
     const { data, error } = await query;
+    const appointmentSavedToSupabase = !error && Boolean(data);
+    const nextAppointment = appointmentSavedToSupabase
+      ? (data as Appointment)
+      : {
+          id: editingAppointmentId || crypto.randomUUID(),
+          ...payload,
+        };
+    const nextAppointments = appointments
+      .filter((appointment) => appointment.id !== nextAppointment.id)
+      .concat(nextAppointment)
+      .sort((a, b) => a.appointment_at.localeCompare(b.appointment_at));
 
-    if (error || !data) {
-      setIsSavingAppointment(false);
-      setAppointmentSaveStatus(editingAppointmentId
-        ? "עדכון התור נכשל. כנראה שצריך לאפשר update לטבלת appointments ב-Supabase."
-        : "קביעת הטיפול נכשלה. כנראה שצריך לאפשר כתיבה לטבלת appointments ב-Supabase.");
-      return;
-    }
-
-    const nextAppointment = data as Appointment;
-    setAppointments((current) => {
-      const withoutEdited = current.filter((appointment) => appointment.id !== nextAppointment.id);
-      return [...withoutEdited, nextAppointment].sort((a, b) =>
-        a.appointment_at.localeCompare(b.appointment_at),
-      );
+    setAppointments(nextAppointments);
+    persistLocalWorkspaceSnapshot({
+      therapists,
+      patients,
+      appointments: nextAppointments,
+      paymentEntries,
+      journalEntries,
+      selectedPatientId,
+      statusDrafts,
     });
 
     if (typeof window !== "undefined" && !editingAppointmentId) {
@@ -2076,7 +2082,15 @@ export function ClinicFlowApp({
     setIsSavingAppointment(false);
     setShowAppointmentDialog(false);
     setEditingAppointmentId("");
-    setAppointmentSaveStatus(editingAppointmentId ? "התור עודכן בהצלחה" : "הטיפול נקבע בהצלחה");
+    setAppointmentSaveStatus(
+      appointmentSavedToSupabase
+        ? editingAppointmentId
+          ? "התור עודכן בהצלחה"
+          : "הטיפול נקבע בהצלחה"
+        : editingAppointmentId
+          ? "התור עודכן מקומית. Supabase לא קיבל כרגע את השינוי."
+          : "הטיפול נקבע מקומית. Supabase לא קיבל כרגע את התור.",
+    );
     setActiveSection("appointments");
   }
 
