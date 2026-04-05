@@ -592,6 +592,7 @@ const defaultAddTherapistForm: AddTherapistForm = {
 
 const reminderLogStorageKey = "clinicflow-reminder-log-v3";
 const reminderItemsStorageKey = "clinicflow-reminder-items-v3";
+const localWorkspaceStateStorageKey = "clinicflow-local-workspace-v1";
 const legacyReminderLogStorageKeys = [
   "clinicflow-reminder-log-v1",
   "clinicflow-reminder-log-v2",
@@ -843,6 +844,8 @@ export function ClinicFlowApp({
   const [editingAppointmentId, setEditingAppointmentId] = useState("");
   const [isSeedingDemo, setIsSeedingDemo] = useState(false);
   const [demoSeedStatus, setDemoSeedStatus] = useState("");
+  const [hasHydratedLocalWorkspace, setHasHydratedLocalWorkspace] = useState(false);
+  const [usingLocalWorkspaceSnapshot, setUsingLocalWorkspaceSnapshot] = useState(false);
   const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>(
     Object.fromEntries(initialPatients.map((patient) => [patient.id, patient.status])),
   );
@@ -1080,25 +1083,118 @@ export function ClinicFlowApp({
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const rawSnapshot = window.localStorage.getItem(localWorkspaceStateStorageKey);
+
+    if (!rawSnapshot) {
+      setHasHydratedLocalWorkspace(true);
+      return;
+    }
+
+    try {
+      const snapshot = JSON.parse(rawSnapshot) as {
+        therapists?: Therapist[];
+        patients?: Patient[];
+        appointments?: Appointment[];
+        paymentEntries?: PaymentEntry[];
+        selectedPatientId?: string;
+        statusDrafts?: Record<string, string>;
+      };
+
+      if (snapshot.therapists) {
+        setTherapists(snapshot.therapists);
+      }
+      if (snapshot.patients) {
+        setPatients(snapshot.patients);
+      }
+      if (snapshot.appointments) {
+        setAppointments(snapshot.appointments);
+      }
+      if (snapshot.paymentEntries) {
+        setPaymentEntries(snapshot.paymentEntries);
+      }
+      if (snapshot.selectedPatientId) {
+        setSelectedPatientId(snapshot.selectedPatientId);
+      }
+      if (snapshot.statusDrafts) {
+        setStatusDrafts(snapshot.statusDrafts);
+      }
+
+      setUsingLocalWorkspaceSnapshot(true);
+    } catch {
+      window.localStorage.removeItem(localWorkspaceStateStorageKey);
+    } finally {
+      setHasHydratedLocalWorkspace(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (usingLocalWorkspaceSnapshot) {
+      return;
+    }
     setPatients(initialPatients);
     setStatusDrafts(
       Object.fromEntries(initialPatients.map((patient) => [patient.id, patient.status])),
     );
-  }, [initialPatients]);
+  }, [initialPatients, usingLocalWorkspaceSnapshot]);
 
   useEffect(() => {
+    if (usingLocalWorkspaceSnapshot) {
+      return;
+    }
     setAppointments(initialAppointments);
-  }, [initialAppointments]);
+  }, [initialAppointments, usingLocalWorkspaceSnapshot]);
+
+  useEffect(() => {
+    if (!hasHydratedLocalWorkspace || typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      localWorkspaceStateStorageKey,
+      JSON.stringify({
+        therapists,
+        patients,
+        appointments,
+        paymentEntries,
+        selectedPatientId,
+        statusDrafts,
+      }),
+    );
+  }, [
+    appointments,
+    hasHydratedLocalWorkspace,
+    patients,
+    paymentEntries,
+    selectedPatientId,
+    statusDrafts,
+    therapists,
+  ]);
 
   const runDemoSeedIfNeeded = useEffectEvent(() => {
-    if (initialPatients.length === 0 && patients.length === 0 && !isSeedingDemo) {
+    if (
+      hasHydratedLocalWorkspace
+      && !usingLocalWorkspaceSnapshot
+      && initialPatients.length === 0
+      && patients.length === 0
+      && !isSeedingDemo
+    ) {
       void handleLoadDemoData();
     }
   });
 
   useEffect(() => {
     runDemoSeedIfNeeded();
-  }, [initialPatients.length, isSeedingDemo, patients.length]);
+  }, [
+    hasHydratedLocalWorkspace,
+    initialPatients.length,
+    isSeedingDemo,
+    patients.length,
+    usingLocalWorkspaceSnapshot,
+  ]);
 
   useEffect(() => {
     if (!selectedPatient) {
