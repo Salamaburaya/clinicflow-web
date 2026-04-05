@@ -13,9 +13,11 @@ type Patient = {
   phone?: string | null;
   email?: string | null;
   city?: string | null;
+  settlement?: string | null;
   address?: string | null;
   birth_date?: string | null;
   gender?: string | null;
+  title?: string | null;
   occupation?: string | null;
   referring_source?: string | null;
   intake_summary?: string | null;
@@ -231,6 +233,8 @@ export function PatientProfileWorkspace({
     { label: "גיל", value: patientAge ? `${patientAge}` : "לא הוזן" },
     { label: "מגדר", value: patient.gender ?? "לא הוזן" },
     { label: "עיר", value: patient.city ?? "לא הוזנה" },
+    { label: "יישוב", value: patient.settlement ?? "לא הוזן" },
+    { label: "תואר", value: patient.title ?? "לא הוזן" },
     { label: "עיסוק", value: patient.occupation ?? "לא הוזן" },
     { label: "מקור הפניה", value: patient.referring_source ?? "לא הוזן" },
     { label: "העדפת תקשורת", value: patient.communication_preference ?? "לא הוזנה" },
