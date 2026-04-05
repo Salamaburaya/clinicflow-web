@@ -1890,8 +1890,8 @@ export function ClinicFlowApp({
 
   return (
     <>
-      <main className="page-shell">
-        <section className="content">
+      <main className={`page-shell page-shell-${displayMode}`}>
+        <section className={`content content-${displayMode}`}>
           <header className="topbar">
             <div className="topbar-copy">
               <p className="eyebrow">ClinicFlow</p>
