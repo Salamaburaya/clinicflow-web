@@ -5,7 +5,7 @@ import { getClinicDashboardData } from "@/lib/clinicflow-dashboard";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function Home() {
+export default async function PatientsPage() {
   const { therapists, patients, appointments, paymentEntries } =
     await getClinicDashboardData();
 
@@ -16,6 +16,8 @@ export default async function Home() {
       appointments={appointments}
       initialPaymentEntries={paymentEntries}
       accessContext={defaultAccessContext}
+      initialSection="patients"
+      displayMode="patients"
     />
   );
 }

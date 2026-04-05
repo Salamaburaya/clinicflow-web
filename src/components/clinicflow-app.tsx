@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   type AccessContext,
   type AppRole,
@@ -94,6 +95,9 @@ type ClinicFlowAppProps = {
   appointments: Appointment[];
   initialPaymentEntries: PaymentEntry[];
   accessContext: AccessContext;
+  initialSection?: AppSection;
+  displayMode?: "full" | "patients" | "patient-record";
+  focusedPatientId?: string;
 };
 
 type AddPatientForm = {
@@ -1091,6 +1095,9 @@ export function ClinicFlowApp({
   appointments: initialAppointments,
   initialPaymentEntries,
   accessContext,
+  initialSection,
+  displayMode = "full",
+  focusedPatientId,
 }: ClinicFlowAppProps) {
   const hasInitialServerData = useMemo(
     () =>
@@ -1112,13 +1119,39 @@ export function ClinicFlowApp({
 
     return buildLocalClinicSeed();
   }, [hasInitialServerData]);
+  const initialPatientPool = bootstrappedClinic?.patients ?? initialPatients;
+  const initialSelectedPatientId =
+    (focusedPatientId
+      && initialPatientPool.some((patient) => patient.id === focusedPatientId)
+      ? focusedPatientId
+      : initialPatientPool[0]?.id) ?? "";
   const [currentRole, setCurrentRole] = useState<AppRole>(accessContext.role);
   const visibleSections = useMemo(
     () => getVisibleSections(currentRole),
     [currentRole],
   );
+  const navigationSections = useMemo(
+    () =>
+      displayMode === "full"
+        ? visibleSections
+        : [
+            {
+              key: "patients" as AppSection,
+              label: displayMode === "patient-record" ? "תיק מטופל" : "מטופלים",
+            },
+          ],
+    [displayMode, visibleSections],
+  );
+  const defaultSection = useMemo<AppSection>(
+    () =>
+      initialSection
+      && navigationSections.some((section) => section.key === initialSection)
+        ? initialSection
+        : navigationSections[0]?.key ?? "dashboard",
+    [initialSection, navigationSections],
+  );
   const [activeSection, setActiveSection] = useState<AppSection>(
-    visibleSections[0]?.key ?? "dashboard",
+    defaultSection,
   );
   const [therapists, setTherapists] = useState(
     () => bootstrappedClinic?.therapists ?? initialTherapists,
@@ -1134,7 +1167,7 @@ export function ClinicFlowApp({
   );
   const [search, setSearch] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState(
-    bootstrappedClinic?.patients[0]?.id ?? initialPatients[0]?.id ?? "",
+    initialSelectedPatientId,
   );
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(
     () =>
@@ -1204,6 +1237,17 @@ export function ClinicFlowApp({
 
   const selectedPatient =
     patients.find((patient) => patient.id === selectedPatientId) ?? patients[0];
+  const isPatientsDirectoryMode = displayMode === "patients";
+  const isPatientRecordMode = displayMode === "patient-record";
+  const selectedPatientIndex = selectedPatient
+    ? patients.findIndex((patient) => patient.id === selectedPatient.id)
+    : -1;
+  const previousPatient = selectedPatientIndex > 0
+    ? patients[selectedPatientIndex - 1]
+    : undefined;
+  const nextPatient = selectedPatientIndex >= 0 && selectedPatientIndex < patients.length - 1
+    ? patients[selectedPatientIndex + 1]
+    : undefined;
 
   const filteredPatients = patients.filter((patient) =>
     [patient.full_name, patient.discipline, patient.status]
@@ -1263,6 +1307,38 @@ export function ClinicFlowApp({
         },
       ]
     : [];
+
+  useEffect(() => {
+    setActiveSection((current) =>
+      navigationSections.some((section) => section.key === current)
+        ? current
+        : defaultSection,
+    );
+  }, [defaultSection, navigationSections]);
+
+  useEffect(() => {
+    if (!focusedPatientId) {
+      return;
+    }
+
+    const focusedPatient = patients.find((patient) => patient.id === focusedPatientId);
+
+    if (!focusedPatient) {
+      return;
+    }
+
+    if (selectedPatientId === focusedPatientId) {
+      return;
+    }
+
+    setSelectedPatientId(focusedPatientId);
+    setAppointmentForm((current) => ({
+      ...current,
+      patient_id: focusedPatientId,
+      therapist_id: focusedPatient.therapist_id ?? current.therapist_id,
+    }));
+  }, [focusedPatientId, patients, selectedPatientId]);
+
   const today = new Date();
   const todayKey = today.toDateString();
   const now = today.getTime();
@@ -1474,7 +1550,7 @@ export function ClinicFlowApp({
       if (snapshot.journalEntries) {
         setJournalEntries(snapshot.journalEntries);
       }
-      if (snapshot.selectedPatientId) {
+      if (!focusedPatientId && snapshot.selectedPatientId) {
         setSelectedPatientId(snapshot.selectedPatientId);
       }
       if (snapshot.statusDrafts) {
@@ -1487,7 +1563,7 @@ export function ClinicFlowApp({
     } finally {
       setHasHydratedLocalWorkspace(true);
     }
-  }, [hasInitialServerData]);
+  }, [focusedPatientId, hasInitialServerData]);
 
   useEffect(() => {
     if (!hasHydratedLocalWorkspace || usingLocalWorkspaceSnapshot) {
@@ -1567,13 +1643,19 @@ export function ClinicFlowApp({
         ? current
         : Object.fromEntries(seed.patients.map((patient) => [patient.id, patient.status])),
     );
-    setSelectedPatientId((current) => current || seed.patients[0]?.id || "");
+    setSelectedPatientId((current) => {
+      if (focusedPatientId && seed.patients.some((patient) => patient.id === focusedPatientId)) {
+        return focusedPatientId;
+      }
+
+      return current || seed.patients[0]?.id || "";
+    });
     setJournalEntries((current) =>
       current.length > 0
         ? current
         : seed.journalEntries.filter((entry) => entry.patient_id === seed.patients[0]?.id),
     );
-  }, [hasHydratedLocalWorkspace, patients.length]);
+  }, [focusedPatientId, hasHydratedLocalWorkspace, patients.length]);
 
   const runDemoSeedIfNeeded = useEffectEvent(() => {
     if (
@@ -2195,7 +2277,7 @@ export function ClinicFlowApp({
           ? "התור עודכן מקומית. Supabase לא קיבל כרגע את השינוי."
           : "הטיפול נקבע מקומית. Supabase לא קיבל כרגע את התור.",
     );
-    setActiveSection("appointments");
+    setActiveSection(isPatientRecordMode ? "patients" : "appointments");
   }
 
   function handleEditAppointment(appointment: Appointment) {
@@ -2216,7 +2298,7 @@ export function ClinicFlowApp({
     });
     setAppointmentSaveStatus("");
     setShowAppointmentDialog(true);
-    setActiveSection("appointments");
+    setActiveSection(isPatientRecordMode ? "patients" : "appointments");
   }
 
   async function handleQuickStatusSave(patientId: string) {
@@ -2344,6 +2426,12 @@ export function ClinicFlowApp({
       selectedPatientId: nextPatients[0]?.id ?? "",
       statusDrafts: nextStatusDrafts,
     });
+
+    if (isPatientRecordMode && typeof window !== "undefined") {
+      window.location.assign("/patients");
+      return;
+    }
+
     setDeleteStatus(
       error
         ? "המטופל נמחק מקומית. Supabase לא קיבל כרגע את המחיקה."
@@ -2387,7 +2475,11 @@ export function ClinicFlowApp({
     });
     setAppointmentSaveStatus("");
     setShowAppointmentDialog(true);
-    setActiveSection("appointments");
+    setActiveSection(isPatientRecordMode ? "patients" : "appointments");
+  }
+
+  function getPatientRecordHref(patientId: string) {
+    return `/patients/${encodeURIComponent(patientId)}`;
   }
 
   function getNoticePhone(notice: ReminderNotice) {
@@ -2861,19 +2953,21 @@ export function ClinicFlowApp({
               </span>
             </div>
 
-            <nav className="top-nav">
-              {visibleSections.map(({ key, label }) => (
-              <button
-                key={key}
-                className={`nav-link ${activeSection === key ? "active" : ""}`}
-                data-section={key}
-                onClick={() => setActiveSection(key)}
-                type="button"
-                >
-                  {label}
-                </button>
-              ))}
-            </nav>
+            {navigationSections.length > 0 ? (
+              <nav className="top-nav">
+                {navigationSections.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    className={`nav-link ${activeSection === key ? "active" : ""}`}
+                    data-section={key}
+                    onClick={() => setActiveSection(key)}
+                    type="button"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </nav>
+            ) : null}
 
             <section className="topbar-summary">
               <div className="summary-pill role-pill">
@@ -2903,33 +2997,49 @@ export function ClinicFlowApp({
             </section>
           </header>
 
-          <section className="hero">
-            <div>
-              <p className="section-tag">עמוד ראשי</p>
-              <h2>ניהול שוטף של המטופלים והתורים</h2>
-              <p>בחר פעולה כדי להוסיף מטופל חדש או לקבוע טיפול.</p>
-            </div>
-            <div className="hero-actions">
-              {patientManagementEnabled ? (
-                <button
-                  className="primary-btn"
-                  type="button"
-                  onClick={openAddPatientDialog}
-                >
-                  הוספת מטופל
-                </button>
-              ) : null}
-              {appointmentManagementEnabled ? (
-                <button
-                  className="secondary-btn"
-                  type="button"
-                  onClick={handleOpenAppointmentDialog}
-                >
-                  מעבר ליומן
-                </button>
-              ) : null}
-            </div>
-          </section>
+          {!isPatientRecordMode ? (
+            <section className="hero">
+              <div>
+                <p className="section-tag">
+                  {isPatientsDirectoryMode ? "מאגר מטופלים" : "עמוד ראשי"}
+                </p>
+                <h2>
+                  {isPatientsDirectoryMode
+                    ? "חיפוש ופתיחת תיקי מטופלים"
+                    : "ניהול שוטף של המטופלים והתורים"}
+                </h2>
+                <p>
+                  {isPatientsDirectoryMode
+                    ? "כאן עובדים על הרשימה, מחפשים מהר, ופותחים תיק מטופל מלא במסך ייעודי."
+                    : "בחר פעולה כדי להוסיף מטופל חדש או לקבוע טיפול."}
+                </p>
+              </div>
+              <div className="hero-actions">
+                {patientManagementEnabled ? (
+                  <button
+                    className="primary-btn"
+                    type="button"
+                    onClick={openAddPatientDialog}
+                  >
+                    הוספת מטופל
+                  </button>
+                ) : null}
+                {isPatientsDirectoryMode ? (
+                  <Link className="secondary-btn" href="/">
+                    חזרה ללוח בקרה
+                  </Link>
+                ) : appointmentManagementEnabled ? (
+                  <button
+                    className="secondary-btn"
+                    type="button"
+                    onClick={handleOpenAppointmentDialog}
+                  >
+                    מעבר ליומן
+                  </button>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
 
           <section className={`panel ${activeSection === "dashboard" ? "active" : ""}`}>
             <div className="stats-grid">
@@ -3035,197 +3145,375 @@ export function ClinicFlowApp({
           <section className={`panel ${activeSection === "patients" ? "active" : ""}`}>
             <div className="section-head">
               <div>
-                <p className="section-tag">מאגר מטופלים</p>
-                <h3>מטופלים ואפשרויות פעולה</h3>
+                <p className="section-tag">
+                  {isPatientRecordMode ? "תיק מטופל" : "מאגר מטופלים"}
+                </p>
+                <h3>
+                  {isPatientRecordMode
+                    ? "תיק מטופל מלא"
+                    : isPatientsDirectoryMode
+                      ? "חיפוש, סינון ופתיחת תיקי מטופלים"
+                      : "מטופלים ואפשרויות פעולה"}
+                </h3>
               </div>
-              <div className="section-tools">
-                <input
-                  type="search"
-                  placeholder="חיפוש לפי שם, תחום או סטטוס"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-                <div className="section-summary">
-                  {filteredPatients.length} מתוך {patients.length} מטופלים
+              {!isPatientRecordMode ? (
+                <div className="section-tools">
+                  <input
+                    type="search"
+                    placeholder="חיפוש לפי שם, תחום או סטטוס"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                  <div className="section-summary">
+                    {filteredPatients.length} מתוך {patients.length} מטופלים
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="section-tools">
+                  <div className="section-summary">
+                    {selectedPatient?.discipline ?? "ללא תחום"}
+                  </div>
+                  <div className="section-summary">
+                    {therapistNameById.get(selectedPatient?.therapist_id ?? "") ?? "ללא מטפל"}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="journal-patient-list">
-              {filteredPatients.map((patient) => (
-                <div
-                  key={patient.id}
-                  className={`journal-patient-item patient-option-item ${selectedPatient?.id === patient.id ? "selected" : ""}`}
-                  onClick={() => handleFocusPatient(patient.id)}
-                >
+            {!isPatientRecordMode ? (
+              <div className="card patient-directory-callout">
+                <div>
+                  <strong>
+                    {selectedPatient
+                      ? `${selectedPatient.full_name} מוכן לפתיחת תיק מלא`
+                      : "בחר מטופל מהרשימה כדי לפתוח תיק מלא"}
+                  </strong>
+                  <div className="item-meta">
+                    כשהמאגר גדל, פותחים תיק מטופל במסך ייעודי בלי לגלול לסוף הרשימה.
+                  </div>
+                </div>
+                <div className="patient-directory-actions">
+                  {selectedPatient ? (
+                    <Link className="primary-btn" href={getPatientRecordHref(selectedPatient.id)}>
+                      פתיחת תיק מלא
+                    </Link>
+                  ) : null}
+                  {displayMode === "full" ? (
+                    <Link className="ghost-btn inline-link-btn" href="/patients">
+                      לעמוד מטופלים מלא
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
+            {isPatientRecordMode ? (
+              <>
+                <div className="card patient-route-toolbar">
                   <div>
-                    <strong>{patient.full_name}</strong>
+                    <strong>{selectedPatient?.full_name ?? "תיק מטופל"}</strong>
                     <div className="item-meta">
-                      {patient.discipline} | {therapistNameById.get(patient.therapist_id ?? "") ?? "ללא מטפל"}
+                      עבודה על התיק המלא במסך ייעודי בלי תלות בגלילה של רשימת המטופלים.
                     </div>
                   </div>
-                  <div className="chips patient-option-chips">
-                    <span className="chip warm">{patient.status}</span>
-                    <span className="chip">
-                      {nextAppointmentByPatientId.get(patient.id)
-                        ? `${formatAppointmentDate(nextAppointmentByPatientId.get(patient.id)!.appointment_at)} ${formatAppointmentTime(nextAppointmentByPatientId.get(patient.id)!.appointment_at)}`
-                        : "ללא תור"}
-                    </span>
-                  </div>
-                  <div className="patient-option-actions">
-                    <label className="inline-field compact-inline-field">
-                      <span className="sr-only">שינוי סטטוס</span>
-                      <select
-                        value={statusDrafts[patient.id] ?? patient.status}
-                        onChange={(event) =>
-                          setStatusDrafts((current) => ({
-                            ...current,
-                            [patient.id]: event.target.value,
-                          }))
-                        }
-                      >
-                        <option value="חדש">חדש</option>
-                        <option value="בטיפול">בטיפול</option>
-                        <option value="מעקב">מעקב</option>
-                      </select>
-                    </label>
-                    {patientManagementEnabled ? (
-                      <button
+                  <div className="patient-route-toolbar-actions">
+                    <Link className="ghost-btn inline-link-btn" href="/patients">
+                      חזרה למאגר המטופלים
+                    </Link>
+                    {previousPatient ? (
+                      <Link
                         className="secondary-btn"
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void handleQuickStatusSave(patient.id);
-                        }}
+                        href={getPatientRecordHref(previousPatient.id)}
                       >
-                        שמירת סטטוס
-                      </button>
+                        מטופל קודם
+                      </Link>
                     ) : null}
-                    {clinicalNotesEnabled ? (
-                      <button
-                        className="ghost-btn"
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleSelectPatient(patient.id);
-                        }}
-                      >
-                        פתיחת יומן
-                      </button>
-                    ) : null}
-                    {appointmentManagementEnabled ? (
-                      <button
-                        className="secondary-btn"
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleCreateAppointmentForPatient(patient.id);
-                        }}
-                      >
-                        קביעת טיפול
-                      </button>
-                    ) : null}
-                    {patientManagementEnabled ? (
-                      <button
-                        className="danger-btn"
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void handleDeletePatient(patient.id);
-                        }}
-                      >
-                        מחיקת מטופל
-                      </button>
+                    {nextPatient ? (
+                      <Link className="secondary-btn" href={getPatientRecordHref(nextPatient.id)}>
+                        מטופל הבא
+                      </Link>
                     ) : null}
                   </div>
                 </div>
-              ))}
-            </div>
 
-            <PatientProfileWorkspace
-              patient={selectedPatient}
-              appointments={selectedPatientAppointments}
-              payments={selectedPatientPayments}
-              journalEntries={journalEntries}
-              therapistName={
-                therapistNameById.get(selectedPatient?.therapist_id ?? "") ?? "ללא מטפל"
-              }
-              statusDraft={selectedPatient ? statusDrafts[selectedPatient.id] ?? selectedPatient.status : "חדש"}
-              canManagePatients={patientManagementEnabled}
-              canManageAppointments={appointmentManagementEnabled}
-              canEditClinicalNotes={clinicalNotesEnabled}
-              canManageBilling={billingManagementEnabled}
-              onStatusDraftChange={(value) => {
-                if (!selectedPatient) {
-                  return;
-                }
-                setStatusDrafts((current) => ({
-                  ...current,
-                  [selectedPatient.id]: value,
-                }));
-              }}
-              onStatusSave={() => {
-                if (!selectedPatient) {
-                  return;
-                }
-                void handleQuickStatusSave(selectedPatient.id);
-              }}
-              onOpenJournal={() => {
-                if (!selectedPatient) {
-                  return;
-                }
-                handleSelectPatient(selectedPatient.id);
-              }}
-              onCreateAppointment={() => {
-                if (!selectedPatient) {
-                  return;
-                }
-                handleCreateAppointmentForPatient(selectedPatient.id);
-              }}
-              onEditPatient={() => {
-                if (!selectedPatient) {
-                  return;
-                }
-                handleEditPatient(selectedPatient);
-              }}
-              onAddPayment={({ amount, method, category, note }) => {
-                if (!selectedPatient) {
-                  return;
-                }
-                handleAddPayment({
-                  patientId: selectedPatient.id,
-                  amount,
-                  method,
-                  category,
-                  note,
-                });
-              }}
-              onUpdatePayment={({ paymentId, amount, method, category, note }) => {
-                if (!selectedPatient) {
-                  return;
-                }
-                handleUpdatePayment({
-                  paymentId,
-                  patientId: selectedPatient.id,
-                  amount,
-                  method,
-                  category,
-                  note,
-                });
-              }}
-              onDeletePayment={(paymentId) => {
-                if (!selectedPatient) {
-                  return;
-                }
-                handleDeletePayment({
-                  paymentId,
-                  patientId: selectedPatient.id,
-                });
-              }}
-              formatAppointmentDate={formatAppointmentDate}
-              formatAppointmentTime={formatAppointmentTime}
-              formatJournalDate={formatJournalDate}
-            />
+                <PatientProfileWorkspace
+                  patient={selectedPatient}
+                  appointments={selectedPatientAppointments}
+                  payments={selectedPatientPayments}
+                  journalEntries={journalEntries}
+                  therapistName={
+                    therapistNameById.get(selectedPatient?.therapist_id ?? "") ?? "ללא מטפל"
+                  }
+                  statusDraft={selectedPatient ? statusDrafts[selectedPatient.id] ?? selectedPatient.status : "חדש"}
+                  canManagePatients={patientManagementEnabled}
+                  canManageAppointments={appointmentManagementEnabled}
+                  canEditClinicalNotes={clinicalNotesEnabled}
+                  canManageBilling={billingManagementEnabled}
+                  onStatusDraftChange={(value) => {
+                    if (!selectedPatient) {
+                      return;
+                    }
+                    setStatusDrafts((current) => ({
+                      ...current,
+                      [selectedPatient.id]: value,
+                    }));
+                  }}
+                  onStatusSave={() => {
+                    if (!selectedPatient) {
+                      return;
+                    }
+                    void handleQuickStatusSave(selectedPatient.id);
+                  }}
+                  onOpenJournal={() => {
+                    if (!selectedPatient) {
+                      return;
+                    }
+                    handleSelectPatient(selectedPatient.id);
+                  }}
+                  onCreateAppointment={() => {
+                    if (!selectedPatient) {
+                      return;
+                    }
+                    handleCreateAppointmentForPatient(selectedPatient.id);
+                  }}
+                  onEditPatient={() => {
+                    if (!selectedPatient) {
+                      return;
+                    }
+                    handleEditPatient(selectedPatient);
+                  }}
+                  onAddPayment={({ amount, method, category, note }) => {
+                    if (!selectedPatient) {
+                      return;
+                    }
+                    handleAddPayment({
+                      patientId: selectedPatient.id,
+                      amount,
+                      method,
+                      category,
+                      note,
+                    });
+                  }}
+                  onUpdatePayment={({ paymentId, amount, method, category, note }) => {
+                    if (!selectedPatient) {
+                      return;
+                    }
+                    handleUpdatePayment({
+                      paymentId,
+                      patientId: selectedPatient.id,
+                      amount,
+                      method,
+                      category,
+                      note,
+                    });
+                  }}
+                  onDeletePayment={(paymentId) => {
+                    if (!selectedPatient) {
+                      return;
+                    }
+                    handleDeletePayment({
+                      paymentId,
+                      patientId: selectedPatient.id,
+                    });
+                  }}
+                  formatAppointmentDate={formatAppointmentDate}
+                  formatAppointmentTime={formatAppointmentTime}
+                  formatJournalDate={formatJournalDate}
+                />
+              </>
+            ) : (
+              <>
+                <div className="journal-patient-list">
+                  {filteredPatients.map((patient) => (
+                    <div
+                      key={patient.id}
+                      className={`journal-patient-item patient-option-item ${selectedPatient?.id === patient.id ? "selected" : ""}`}
+                      onClick={() => handleFocusPatient(patient.id)}
+                    >
+                      <div>
+                        <strong>{patient.full_name}</strong>
+                        <div className="item-meta">
+                          {patient.discipline} | {therapistNameById.get(patient.therapist_id ?? "") ?? "ללא מטפל"}
+                        </div>
+                      </div>
+                      <div className="chips patient-option-chips">
+                        <span className="chip warm">{patient.status}</span>
+                        <span className="chip">
+                          {nextAppointmentByPatientId.get(patient.id)
+                            ? `${formatAppointmentDate(nextAppointmentByPatientId.get(patient.id)!.appointment_at)} ${formatAppointmentTime(nextAppointmentByPatientId.get(patient.id)!.appointment_at)}`
+                            : "ללא תור"}
+                        </span>
+                      </div>
+                      <div className="patient-option-actions">
+                        <Link
+                          className="primary-btn"
+                          href={getPatientRecordHref(patient.id)}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          פתיחת תיק מלא
+                        </Link>
+                        <label className="inline-field compact-inline-field">
+                          <span className="sr-only">שינוי סטטוס</span>
+                          <select
+                            value={statusDrafts[patient.id] ?? patient.status}
+                            onChange={(event) =>
+                              setStatusDrafts((current) => ({
+                                ...current,
+                                [patient.id]: event.target.value,
+                              }))
+                            }
+                          >
+                            <option value="חדש">חדש</option>
+                            <option value="בטיפול">בטיפול</option>
+                            <option value="מעקב">מעקב</option>
+                          </select>
+                        </label>
+                        {patientManagementEnabled ? (
+                          <button
+                            className="secondary-btn"
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void handleQuickStatusSave(patient.id);
+                            }}
+                          >
+                            שמירת סטטוס
+                          </button>
+                        ) : null}
+                        {clinicalNotesEnabled ? (
+                          <button
+                            className="ghost-btn"
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleSelectPatient(patient.id);
+                            }}
+                          >
+                            פתיחת יומן
+                          </button>
+                        ) : null}
+                        {appointmentManagementEnabled ? (
+                          <button
+                            className="secondary-btn"
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleCreateAppointmentForPatient(patient.id);
+                            }}
+                          >
+                            קביעת טיפול
+                          </button>
+                        ) : null}
+                        {patientManagementEnabled ? (
+                          <button
+                            className="danger-btn"
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void handleDeletePatient(patient.id);
+                            }}
+                          >
+                            מחיקת מטופל
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                  {filteredPatients.length === 0 ? (
+                    <div className="empty-card patient-list-empty-card">
+                      אין כרגע מטופלים שתואמים לחיפוש. אפשר לנקות את הסינון או להוסיף מטופל חדש.
+                    </div>
+                  ) : null}
+                </div>
+
+                {displayMode === "full" ? (
+                  <PatientProfileWorkspace
+                    patient={selectedPatient}
+                    appointments={selectedPatientAppointments}
+                    payments={selectedPatientPayments}
+                    journalEntries={journalEntries}
+                    therapistName={
+                      therapistNameById.get(selectedPatient?.therapist_id ?? "") ?? "ללא מטפל"
+                    }
+                    statusDraft={selectedPatient ? statusDrafts[selectedPatient.id] ?? selectedPatient.status : "חדש"}
+                    canManagePatients={patientManagementEnabled}
+                    canManageAppointments={appointmentManagementEnabled}
+                    canEditClinicalNotes={clinicalNotesEnabled}
+                    canManageBilling={billingManagementEnabled}
+                    onStatusDraftChange={(value) => {
+                      if (!selectedPatient) {
+                        return;
+                      }
+                      setStatusDrafts((current) => ({
+                        ...current,
+                        [selectedPatient.id]: value,
+                      }));
+                    }}
+                    onStatusSave={() => {
+                      if (!selectedPatient) {
+                        return;
+                      }
+                      void handleQuickStatusSave(selectedPatient.id);
+                    }}
+                    onOpenJournal={() => {
+                      if (!selectedPatient) {
+                        return;
+                      }
+                      handleSelectPatient(selectedPatient.id);
+                    }}
+                    onCreateAppointment={() => {
+                      if (!selectedPatient) {
+                        return;
+                      }
+                      handleCreateAppointmentForPatient(selectedPatient.id);
+                    }}
+                    onEditPatient={() => {
+                      if (!selectedPatient) {
+                        return;
+                      }
+                      handleEditPatient(selectedPatient);
+                    }}
+                    onAddPayment={({ amount, method, category, note }) => {
+                      if (!selectedPatient) {
+                        return;
+                      }
+                      handleAddPayment({
+                        patientId: selectedPatient.id,
+                        amount,
+                        method,
+                        category,
+                        note,
+                      });
+                    }}
+                    onUpdatePayment={({ paymentId, amount, method, category, note }) => {
+                      if (!selectedPatient) {
+                        return;
+                      }
+                      handleUpdatePayment({
+                        paymentId,
+                        patientId: selectedPatient.id,
+                        amount,
+                        method,
+                        category,
+                        note,
+                      });
+                    }}
+                    onDeletePayment={(paymentId) => {
+                      if (!selectedPatient) {
+                        return;
+                      }
+                      handleDeletePayment({
+                        paymentId,
+                        patientId: selectedPatient.id,
+                      });
+                    }}
+                    formatAppointmentDate={formatAppointmentDate}
+                    formatAppointmentTime={formatAppointmentTime}
+                    formatJournalDate={formatJournalDate}
+                  />
+                ) : null}
+              </>
+            )}
             {deleteStatus ? <div className="item-meta">{deleteStatus}</div> : null}
           </section>
 

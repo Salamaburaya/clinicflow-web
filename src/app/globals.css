@@ -474,6 +474,25 @@ button, input, select, textarea { font: inherit; }
   gap: 16px;
 }
 
+.patient-directory-callout,
+.patient-route-toolbar,
+.patient-route-state-card {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.patient-directory-actions,
+.patient-route-toolbar-actions,
+.patient-route-state-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .journal-patient-list {
   display: grid;
   gap: 12px;
@@ -497,6 +516,10 @@ button, input, select, textarea { font: inherit; }
 .journal-patient-item:hover {
   transform: translateY(-1px);
   background: rgba(216, 239, 229, 0.28);
+}
+
+.patient-list-empty-card {
+  padding: 22px;
 }
 
 .sr-only {
@@ -891,6 +914,8 @@ button, input, select, textarea { font: inherit; }
   .smart-template-grid { grid-template-columns: 1fr; }
   .readiness-grid { grid-template-columns: 1fr; }
   .appointments-callout { flex-direction: column; align-items: stretch; }
+  .patient-directory-callout, .patient-route-toolbar, .patient-route-state-card { flex-direction: column; align-items: stretch; }
+  .patient-directory-actions, .patient-route-toolbar-actions, .patient-route-state-actions { justify-content: stretch; }
 }
 
 @media (max-width: 720px) {
@@ -956,7 +981,7 @@ button, input, select, textarea { font: inherit; }
   .hero { padding-top: 8px; }
   .hero, .section-head, .timeline-item { grid-template-columns: 1fr; display: grid; }
   .hero-actions { width: 100%; }
-  .hero-actions button, .section-head input, .section-head select, .section-tools { width: 100%; }
+  .hero-actions button, .hero-actions a, .section-head input, .section-head select, .section-tools { width: 100%; }
   .section-summary { white-space: normal; }
   .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .select-row { grid-template-columns: 1fr; }
