@@ -428,44 +428,63 @@ async function loadClinicRows(supabase: DashboardSupabaseClient): Promise<Clinic
 }
 
 function hasClinicData(result: ClinicDashboardData) {
-  return (
-    result.therapists.length > 0
-    || result.patients.length > 0
-    || result.appointments.length > 0
-    || result.paymentEntries.length > 0
-  );
+  return result.patients.length > 0;
 }
 
-async function seedClinicDataOnServer(
+function shouldEnsureServerSeed(result: ClinicDashboardData) {
+  return result.patients.length === 0;
+}
+
+async function ensureSeedClinicDataOnServer(
   supabase: ServerSupabaseClient,
 ): Promise<ClinicDashboardData> {
   const fallback = getFallbackClinicData();
   const seedErrors: string[] = [];
 
-  const therapistInsertResult = await supabase
-    .from("therapists")
-    .insert(
-      fallback.therapists.map((therapist) => ({
-        full_name: therapist.full_name,
-        profession: therapist.profession,
-        specialty: therapist.specialty,
-        phone: therapist.phone,
-      })),
-    )
-    .select("*");
-
-  if (therapistInsertResult.error) {
-    seedErrors.push(`seed-therapists:${therapistInsertResult.error.message}`);
-  }
-
+  const therapistNames = fallback.therapists.map((therapist) => therapist.full_name);
   const therapistLookupResult = await supabase
     .from("therapists")
     .select("*")
-    .in("full_name", fallback.therapists.map((therapist) => therapist.full_name));
+    .in("full_name", therapistNames);
 
-  const therapistRows = (therapistLookupResult.data ?? []) as Therapist[];
+  const initialTherapistRows = (therapistLookupResult.data ?? []) as Therapist[];
   if (therapistLookupResult.error) {
     seedErrors.push(`lookup-therapists:${therapistLookupResult.error.message}`);
+  }
+
+  const existingTherapistNames = new Set(
+    initialTherapistRows.map((therapist) => therapist.full_name),
+  );
+  const missingTherapists = fallback.therapists.filter(
+    (therapist) => !existingTherapistNames.has(therapist.full_name),
+  );
+
+  if (missingTherapists.length > 0) {
+    const therapistInsertResult = await supabase
+      .from("therapists")
+      .insert(
+        missingTherapists.map((therapist) => ({
+          full_name: therapist.full_name,
+          profession: therapist.profession,
+          specialty: therapist.specialty,
+          phone: therapist.phone,
+        })),
+      )
+      .select("*");
+
+    if (therapistInsertResult.error) {
+      seedErrors.push(`seed-therapists:${therapistInsertResult.error.message}`);
+    }
+  }
+
+  const refreshedTherapistLookupResult = await supabase
+    .from("therapists")
+    .select("*")
+    .in("full_name", therapistNames);
+
+  const therapistRows = (refreshedTherapistLookupResult.data ?? []) as Therapist[];
+  if (refreshedTherapistLookupResult.error) {
+    seedErrors.push(`refresh-therapists:${refreshedTherapistLookupResult.error.message}`);
   }
 
   const therapistIdMap = new Map<string, string>();
@@ -478,57 +497,75 @@ async function seedClinicDataOnServer(
     }
   });
 
-  const patientInsertResult = await supabase
-    .from("patients")
-    .insert(
-      fallback.patients.map((patient) => ({
-        full_name: patient.full_name,
-        discipline: patient.discipline,
-        status: patient.status,
-        diagnosis: patient.diagnosis,
-        treatment_goal: patient.treatment_goal,
-        therapist_id: patient.therapist_id
-          ? therapistIdMap.get(patient.therapist_id) ?? null
-          : null,
-        phone: patient.phone ?? null,
-        email: patient.email ?? null,
-        city: patient.city ?? null,
-        settlement: patient.settlement ?? null,
-        address: patient.address ?? null,
-        birth_date: patient.birth_date ?? null,
-        gender: patient.gender ?? null,
-        title: patient.title ?? null,
-        occupation: patient.occupation ?? null,
-        referring_source: patient.referring_source ?? null,
-        intake_summary: patient.intake_summary ?? null,
-        medical_background: patient.medical_background ?? null,
-        medications: patient.medications ?? null,
-        allergies: patient.allergies ?? null,
-        emergency_contact_name: patient.emergency_contact_name ?? null,
-        emergency_contact_phone: patient.emergency_contact_phone ?? null,
-        insurance_provider: patient.insurance_provider ?? null,
-        coverage_track: patient.coverage_track ?? null,
-        communication_preference: patient.communication_preference ?? null,
-        preferred_days: patient.preferred_days ?? null,
-        attendance_risk: patient.attendance_risk ?? null,
-        functional_status: patient.functional_status ?? null,
-        payment_balance: patient.payment_balance ?? 0,
-      })),
-    )
-    .select("*");
-
-  if (patientInsertResult.error) {
-    seedErrors.push(`seed-patients:${patientInsertResult.error.message}`);
-  }
-
+  const patientNames = fallback.patients.map((patient) => patient.full_name);
   const patientLookupResult = await supabase
     .from("patients")
     .select("*")
-    .in("full_name", fallback.patients.map((patient) => patient.full_name));
+    .in("full_name", patientNames);
 
-  const patientRows = (patientLookupResult.data ?? []) as Patient[];
+  const initialPatientRows = (patientLookupResult.data ?? []) as Patient[];
   if (patientLookupResult.error) {
     seedErrors.push(`lookup-patients:${patientLookupResult.error.message}`);
+  }
+
+  const existingPatientNames = new Set(initialPatientRows.map((patient) => patient.full_name));
+  const missingPatients = fallback.patients.filter(
+    (patient) => !existingPatientNames.has(patient.full_name),
+  );
+
+  if (missingPatients.length > 0) {
+    const patientInsertResult = await supabase
+      .from("patients")
+      .insert(
+        missingPatients.map((patient) => ({
+          full_name: patient.full_name,
+          discipline: patient.discipline,
+          status: patient.status,
+          diagnosis: patient.diagnosis,
+          treatment_goal: patient.treatment_goal,
+          therapist_id: patient.therapist_id
+            ? therapistIdMap.get(patient.therapist_id) ?? null
+            : null,
+          phone: patient.phone ?? null,
+          email: patient.email ?? null,
+          city: patient.city ?? null,
+          settlement: patient.settlement ?? null,
+          address: patient.address ?? null,
+          birth_date: patient.birth_date ?? null,
+          gender: patient.gender ?? null,
+          title: patient.title ?? null,
+          occupation: patient.occupation ?? null,
+          referring_source: patient.referring_source ?? null,
+          intake_summary: patient.intake_summary ?? null,
+          medical_background: patient.medical_background ?? null,
+          medications: patient.medications ?? null,
+          allergies: patient.allergies ?? null,
+          emergency_contact_name: patient.emergency_contact_name ?? null,
+          emergency_contact_phone: patient.emergency_contact_phone ?? null,
+          insurance_provider: patient.insurance_provider ?? null,
+          coverage_track: patient.coverage_track ?? null,
+          communication_preference: patient.communication_preference ?? null,
+          preferred_days: patient.preferred_days ?? null,
+          attendance_risk: patient.attendance_risk ?? null,
+          functional_status: patient.functional_status ?? null,
+          payment_balance: patient.payment_balance ?? 0,
+        })),
+      )
+      .select("*");
+
+    if (patientInsertResult.error) {
+      seedErrors.push(`seed-patients:${patientInsertResult.error.message}`);
+    }
+  }
+
+  const refreshedPatientLookupResult = await supabase
+    .from("patients")
+    .select("*")
+    .in("full_name", patientNames);
+
+  const patientRows = (refreshedPatientLookupResult.data ?? []) as Patient[];
+  if (refreshedPatientLookupResult.error) {
+    seedErrors.push(`refresh-patients:${refreshedPatientLookupResult.error.message}`);
   }
 
   const patientIdMap = new Map<string, string>();
@@ -541,12 +578,23 @@ async function seedClinicDataOnServer(
     }
   });
 
-  const appointmentsProbe = await supabase.from("appointments").select("id").limit(1);
-  if (appointmentsProbe.error) {
-    seedErrors.push(`probe-appointments:${appointmentsProbe.error.message}`);
-  } else if ((appointmentsProbe.data ?? []).length === 0) {
-    const appointmentInsertResult = await supabase.from("appointments").insert(
-      fallback.appointments
+  const seededPatientIds = Array.from(patientIdMap.values());
+  if (seededPatientIds.length > 0) {
+    const appointmentsLookupResult = await supabase
+      .from("appointments")
+      .select("patient_id, appointment_at")
+      .in("patient_id", seededPatientIds);
+
+    const existingAppointmentKeys = new Set(
+      (appointmentsLookupResult.data ?? []).map(
+        (appointment) => `${appointment.patient_id}:${appointment.appointment_at}`,
+      ),
+    );
+
+    if (appointmentsLookupResult.error) {
+      seedErrors.push(`lookup-appointments:${appointmentsLookupResult.error.message}`);
+    } else {
+      const missingAppointments = fallback.appointments
         .map((appointment) => ({
           patient_id: patientIdMap.get(appointment.patient_id) ?? null,
           therapist_id: appointment.therapist_id
@@ -557,20 +605,47 @@ async function seedClinicDataOnServer(
           status: appointment.status,
           summary: appointment.summary,
         }))
-        .filter((appointment) => appointment.patient_id),
+        .filter(
+          (appointment): appointment is {
+            patient_id: string;
+            therapist_id: string | null;
+            appointment_at: string;
+            room: string | null;
+            status: string;
+            summary: string | null;
+          } =>
+            Boolean(appointment.patient_id)
+            && !existingAppointmentKeys.has(
+              `${appointment.patient_id}:${appointment.appointment_at}`,
+            ),
+        );
+
+      if (missingAppointments.length > 0) {
+        const appointmentInsertResult = await supabase
+          .from("appointments")
+          .insert(missingAppointments);
+
+        if (appointmentInsertResult.error) {
+          seedErrors.push(`seed-appointments:${appointmentInsertResult.error.message}`);
+        }
+      }
+    }
+
+    const paymentsLookupResult = await supabase
+      .from("payment_entries")
+      .select("patient_id, payment_date, amount, category")
+      .in("patient_id", seededPatientIds);
+
+    const existingPaymentKeys = new Set(
+      (paymentsLookupResult.data ?? []).map(
+        (entry) => `${entry.patient_id}:${entry.payment_date}:${entry.amount}:${entry.category}`,
+      ),
     );
 
-    if (appointmentInsertResult.error) {
-      seedErrors.push(`seed-appointments:${appointmentInsertResult.error.message}`);
-    }
-  }
-
-  const paymentsProbe = await supabase.from("payment_entries").select("id").limit(1);
-  if (paymentsProbe.error) {
-    seedErrors.push(`probe-payments:${paymentsProbe.error.message}`);
-  } else if ((paymentsProbe.data ?? []).length === 0) {
-    const paymentInsertResult = await supabase.from("payment_entries").insert(
-      fallback.paymentEntries
+    if (paymentsLookupResult.error) {
+      seedErrors.push(`lookup-payments:${paymentsLookupResult.error.message}`);
+    } else {
+      const missingPayments = fallback.paymentEntries
         .map((entry) => ({
           patient_id: patientIdMap.get(entry.patient_id) ?? null,
           created_at: entry.created_at,
@@ -581,11 +656,32 @@ async function seedClinicDataOnServer(
           category: entry.category,
           note: entry.note,
         }))
-        .filter((entry) => entry.patient_id),
-    );
+        .filter(
+          (entry): entry is {
+            patient_id: string;
+            created_at: string;
+            payment_date: string;
+            amount: number;
+            method: string;
+            status: "completed" | "pending" | "refunded";
+            category: string;
+            note: string | null;
+          } =>
+            Boolean(entry.patient_id)
+            && !existingPaymentKeys.has(
+              `${entry.patient_id}:${entry.payment_date}:${entry.amount}:${entry.category}`,
+            ),
+        );
 
-    if (paymentInsertResult.error) {
-      seedErrors.push(`seed-payments:${paymentInsertResult.error.message}`);
+      if (missingPayments.length > 0) {
+        const paymentInsertResult = await supabase
+          .from("payment_entries")
+          .insert(missingPayments);
+
+        if (paymentInsertResult.error) {
+          seedErrors.push(`seed-payments:${paymentInsertResult.error.message}`);
+        }
+      }
     }
   }
 
@@ -603,19 +699,21 @@ export async function getClinicDashboardData(): Promise<ClinicDashboardData> {
     const serverSupabase = getServerSupabaseClient();
     const serverData = await loadClinicRows(serverSupabase);
 
+    if (shouldEnsureServerSeed(serverData)) {
+      const seededServerData = await ensureSeedClinicDataOnServer(serverSupabase);
+      if (hasClinicData(seededServerData)) {
+        return seededServerData;
+      }
+
+      return {
+        ...getFallbackClinicData(),
+        errors: [...errors, ...seededServerData.errors],
+      };
+    }
+
     if (hasClinicData(serverData)) {
       return serverData;
     }
-
-    const seededServerData = await seedClinicDataOnServer(serverSupabase);
-    if (hasClinicData(seededServerData)) {
-      return seededServerData;
-    }
-
-    return {
-      ...getFallbackClinicData(),
-      errors: [...errors, ...seededServerData.errors],
-    };
   } catch (error) {
     errors.push(
       error instanceof Error
