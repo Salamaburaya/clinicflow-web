@@ -171,6 +171,11 @@ type UpdatePaymentInput = {
   note: string;
 };
 
+type DeletePaymentInput = {
+  paymentId: string;
+  patientId: string;
+};
+
 type ReminderKind = "confirmation" | "24h" | "1h";
 
 type ReminderNotice = {
@@ -2452,6 +2457,39 @@ export function ClinicFlowApp({
     });
   }
 
+  function handleDeletePayment({ paymentId, patientId }: DeletePaymentInput) {
+    if (!paymentId || !patientId) {
+      return;
+    }
+
+    const existingPayment = paymentEntries.find((entry) => entry.id === paymentId);
+
+    if (!existingPayment) {
+      return;
+    }
+
+    const nextPaymentEntries = paymentEntries.filter((entry) => entry.id !== paymentId);
+    const nextPatients = patients.map((patient) =>
+      patient.id === patientId
+        ? {
+            ...patient,
+            payment_balance: (patient.payment_balance ?? 0) + existingPayment.amount,
+          }
+        : patient,
+    );
+
+    setPaymentEntries(nextPaymentEntries);
+    setPatients(nextPatients);
+    persistLocalWorkspaceSnapshot({
+      therapists,
+      patients: nextPatients,
+      appointments,
+      paymentEntries: nextPaymentEntries,
+      selectedPatientId,
+      statusDrafts,
+    });
+  }
+
   function handleJournalTemplateAnswerChange(fieldKey: string, value: string) {
     setJournalForm((current) => ({
       ...current,
@@ -2840,6 +2878,15 @@ export function ClinicFlowApp({
                   method,
                   category,
                   note,
+                });
+              }}
+              onDeletePayment={(paymentId) => {
+                if (!selectedPatient) {
+                  return;
+                }
+                handleDeletePayment({
+                  paymentId,
+                  patientId: selectedPatient.id,
                 });
               }}
               formatAppointmentDate={formatAppointmentDate}

@@ -95,6 +95,7 @@ type PatientProfileWorkspaceProps = {
     category: string;
     note: string;
   }) => void;
+  onDeletePayment: (paymentId: string) => void;
   formatAppointmentDate: (value: string) => string;
   formatAppointmentTime: (value: string) => string;
   formatJournalDate: (value: string) => string;
@@ -164,6 +165,7 @@ export function PatientProfileWorkspace({
   onCreateAppointment,
   onAddPayment,
   onUpdatePayment,
+  onDeletePayment,
   formatAppointmentDate,
   formatAppointmentTime,
   formatJournalDate,
@@ -583,21 +585,44 @@ export function PatientProfileWorkspace({
                           <div className="workspace-payment-cell">
                             <span>{payment.note ?? "ללא הערה"}</span>
                             {canManageBilling ? (
-                              <button
-                                className="ghost-btn"
-                                type="button"
-                                onClick={() => {
-                                  setEditingPaymentId(payment.id);
-                                  setPaymentForm({
-                                    amount: String(payment.amount),
-                                    method: payment.method,
-                                    category: payment.category,
-                                    note: payment.note ?? "",
-                                  });
-                                }}
-                              >
-                                עריכה
-                              </button>
+                              <>
+                                <button
+                                  className="ghost-btn"
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingPaymentId(payment.id);
+                                    setPaymentForm({
+                                      amount: String(payment.amount),
+                                      method: payment.method,
+                                      category: payment.category,
+                                      note: payment.note ?? "",
+                                    });
+                                  }}
+                                >
+                                  עריכה
+                                </button>
+                                <button
+                                  className="ghost-btn danger-text"
+                                  type="button"
+                                  onClick={() => {
+                                    const shouldDelete = window.confirm(
+                                      "למחוק את התשלום הזה? הפעולה תעדכן גם את היתרה של המטופל.",
+                                    );
+
+                                    if (!shouldDelete) {
+                                      return;
+                                    }
+
+                                    if (editingPaymentId === payment.id) {
+                                      resetPaymentForm();
+                                    }
+
+                                    onDeletePayment(payment.id);
+                                  }}
+                                >
+                                  מחיקה
+                                </button>
+                              </>
                             ) : null}
                           </div>
                         </td>
