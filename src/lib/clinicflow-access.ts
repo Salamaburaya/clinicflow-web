@@ -87,3 +87,7 @@ export function canEditClinicalNotes(role: AppRole) {
 export function canManageAppointments(role: AppRole) {
   return role === "admin" || role === "therapist" || role === "reception";
 }
+
+export function canManageBilling(role: AppRole) {
+  return role === "admin" || role === "reception" || role === "finance";
+}

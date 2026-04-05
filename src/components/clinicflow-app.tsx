@@ -4,6 +4,7 @@ import {
   type AccessContext,
   type AppRole,
   type AppSection,
+  canManageBilling,
   canEditClinicalNotes,
   canManageAppointments,
   canManagePatients,
@@ -64,6 +65,18 @@ type Appointment = {
   therapist_id: string | null;
 };
 
+type PaymentEntry = {
+  id: string;
+  patient_id: string;
+  created_at: string;
+  payment_date: string;
+  amount: number;
+  method: string;
+  status: "completed" | "pending" | "refunded";
+  category: string;
+  note: string | null;
+};
+
 type JournalEntry = {
   id: string;
   patient_id: string;
@@ -120,6 +133,14 @@ type AddTherapistForm = {
   phone: string;
 };
 
+type AddPaymentInput = {
+  patientId: string;
+  amount: number;
+  method: string;
+  category: string;
+  note: string;
+};
+
 type ReminderKind = "confirmation" | "24h" | "1h";
 
 type ReminderNotice = {
@@ -168,6 +189,14 @@ type DemoPatientSeed = {
   attendance_risk: string;
   functional_status: string;
   payment_balance: number;
+  payments: Array<{
+    daysOffset: number;
+    amount: number;
+    method: string;
+    status?: "completed" | "pending" | "refunded";
+    category: string;
+    note: string;
+  }>;
   therapistName: string;
   appointments: Array<{
     daysOffset: number;
@@ -351,6 +380,22 @@ const demoPatients: DemoPatientSeed[] = [
     attendance_risk: "נמוך",
     functional_status: "מסוגלת לעבוד, אך מגבילה קפיצות, כריעה וריצה ממושכת.",
     payment_balance: -180,
+    payments: [
+      {
+        daysOffset: -12,
+        amount: 220,
+        method: "אשראי",
+        category: "אבחון ראשוני",
+        note: "חיוב ראשון דרך מסוף הקליניקה",
+      },
+      {
+        daysOffset: -5,
+        amount: 180,
+        method: "העברה",
+        category: "מפגש המשך",
+        note: "העברה בנקאית לאחר טיפול",
+      },
+    ],
     therapistName: "חן תאסיריה",
     appointments: [
       {
@@ -417,6 +462,22 @@ const demoPatients: DemoPatientSeed[] = [
     attendance_risk: "בינוני",
     functional_status: "זקוק לתיווך במעברים, התארגנות עצמית חלקית בלבד בשעות הלחץ.",
     payment_balance: 0,
+    payments: [
+      {
+        daysOffset: -20,
+        amount: 320,
+        method: "התחייבות קופה",
+        category: "קליטה והערכה",
+        note: "אישור קופה לחודש הראשון",
+      },
+      {
+        daysOffset: -7,
+        amount: 240,
+        method: "התחייבות קופה",
+        category: "מפגשי מעקב",
+        note: "שולם דרך מסלול הקופה",
+      },
+    ],
     therapistName: "מאיה לוי",
     appointments: [
       {
@@ -478,6 +539,15 @@ const demoPatients: DemoPatientSeed[] = [
     attendance_risk: "נמוך",
     functional_status: "עובד במשרה מלאה אך קם לעיתים תכופות ומגביל נהיגה ארוכה.",
     payment_balance: 320,
+    payments: [
+      {
+        daysOffset: -1,
+        amount: 180,
+        method: "ביט",
+        category: "מקדמה",
+        note: "מקדמה לשמירת סדרת טיפולים",
+      },
+    ],
     therapistName: "עמית כהן",
     appointments: [
       {
@@ -733,6 +803,7 @@ export function ClinicFlowApp({
   const [therapists, setTherapists] = useState(initialTherapists);
   const [patients, setPatients] = useState(initialPatients);
   const [appointments, setAppointments] = useState(initialAppointments);
+  const [paymentEntries, setPaymentEntries] = useState<PaymentEntry[]>([]);
   const [search, setSearch] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState(
     initialPatients[0]?.id ?? "",
@@ -819,6 +890,12 @@ export function ClinicFlowApp({
   const selectedPatientAppointments = appointments.filter(
     (appointment) => appointment.patient_id === selectedPatient?.id,
   );
+  const selectedPatientPayments = paymentEntries
+    .filter((entry) => entry.patient_id === selectedPatient?.id)
+    .sort(
+      (a, b) =>
+        new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime(),
+    );
   const nextAppointmentForSelectedPatient = selectedPatientAppointments[0];
   const selectedPatientReadiness = selectedPatient
     ? [
@@ -925,6 +1002,7 @@ export function ClinicFlowApp({
   const patientManagementEnabled = canManagePatients(currentRole);
   const appointmentManagementEnabled = canManageAppointments(currentRole);
   const clinicalNotesEnabled = canEditClinicalNotes(currentRole);
+  const billingManagementEnabled = canManageBilling(currentRole);
 
   useEffect(() => {
     if (!visibleSections.some((section) => section.key === activeSection)) {
@@ -1755,12 +1833,38 @@ export function ClinicFlowApp({
         }),
       );
 
+      const demoPaymentRows: PaymentEntry[] = patientsToSeed.flatMap((patient) =>
+        patient.payments.map((payment) => {
+          const date = new Date();
+          date.setDate(date.getDate() + payment.daysOffset);
+          date.setHours(12, 0, 0, 0);
+
+          return {
+            id: crypto.randomUUID(),
+            patient_id: patientMap.get(patient.full_name)?.id ?? "",
+            created_at: date.toISOString(),
+            payment_date: date.toISOString(),
+            amount: payment.amount,
+            method: payment.method,
+            status: payment.status ?? "completed",
+            category: payment.category,
+            note: payment.note,
+          };
+        }),
+      );
+
       setTherapists((current) => [...demoTherapistRows, ...current]);
       setPatients((current) => [...demoPatientRows, ...current]);
       setAppointments((current) =>
         [...current, ...demoAppointmentRows].sort(
           (a, b) =>
             new Date(a.appointment_at).getTime() - new Date(b.appointment_at).getTime(),
+        ),
+      );
+      setPaymentEntries((current) =>
+        [...demoPaymentRows, ...current].sort(
+          (a, b) =>
+            new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime(),
         ),
       );
       setJournalEntries(demoJournalRows.filter((entry) => entry.patient_id === demoPatientRows[0]?.id));
@@ -1786,6 +1890,40 @@ export function ClinicFlowApp({
       templateKey: nextTemplate.key,
       templateAnswers: createTemplateAnswers(nextTemplate, current.templateAnswers),
     }));
+  }
+
+  function handleAddPayment({ patientId, amount, method, category, note }: AddPaymentInput) {
+    const normalizedAmount = Number(amount);
+
+    if (!patientId || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    const nextEntry: PaymentEntry = {
+      id: crypto.randomUUID(),
+      patient_id: patientId,
+      created_at: now,
+      payment_date: now,
+      amount: normalizedAmount,
+      method,
+      status: "completed",
+      category,
+      note: note.trim() || null,
+    };
+
+    setPaymentEntries((current) => [nextEntry, ...current]);
+    setPatients((current) =>
+      current.map((patient) =>
+        patient.id === patientId
+          ? {
+              ...patient,
+              payment_balance: (patient.payment_balance ?? 0) - normalizedAmount,
+            }
+          : patient,
+      ),
+    );
   }
 
   function handleJournalTemplateAnswerChange(fieldKey: string, value: string) {
@@ -2127,6 +2265,7 @@ export function ClinicFlowApp({
             <PatientProfileWorkspace
               patient={selectedPatient}
               appointments={selectedPatientAppointments}
+              payments={selectedPatientPayments}
               journalEntries={journalEntries}
               therapistName={
                 therapistNameById.get(selectedPatient?.therapist_id ?? "") ?? "ללא מטפל"
@@ -2135,6 +2274,7 @@ export function ClinicFlowApp({
               canManagePatients={patientManagementEnabled}
               canManageAppointments={appointmentManagementEnabled}
               canEditClinicalNotes={clinicalNotesEnabled}
+              canManageBilling={billingManagementEnabled}
               onStatusDraftChange={(value) => {
                 if (!selectedPatient) {
                   return;
@@ -2161,6 +2301,18 @@ export function ClinicFlowApp({
                   return;
                 }
                 handleCreateAppointmentForPatient(selectedPatient.id);
+              }}
+              onAddPayment={({ amount, method, category, note }) => {
+                if (!selectedPatient) {
+                  return;
+                }
+                handleAddPayment({
+                  patientId: selectedPatient.id,
+                  amount,
+                  method,
+                  category,
+                  note,
+                });
               }}
               formatAppointmentDate={formatAppointmentDate}
               formatAppointmentTime={formatAppointmentTime}

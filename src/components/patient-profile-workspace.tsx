@@ -43,6 +43,18 @@ type Appointment = {
   therapist_id: string | null;
 };
 
+type PaymentEntry = {
+  id: string;
+  patient_id: string;
+  created_at: string;
+  payment_date: string;
+  amount: number;
+  method: string;
+  status: "completed" | "pending" | "refunded";
+  category: string;
+  note: string | null;
+};
+
 type JournalEntry = {
   id: string;
   patient_id: string;
@@ -56,16 +68,24 @@ type JournalEntry = {
 type PatientProfileWorkspaceProps = {
   patient?: Patient;
   appointments: Appointment[];
+  payments: PaymentEntry[];
   journalEntries: JournalEntry[];
   therapistName: string;
   statusDraft: string;
   canManagePatients: boolean;
   canManageAppointments: boolean;
   canEditClinicalNotes: boolean;
+  canManageBilling: boolean;
   onStatusDraftChange: (value: string) => void;
   onStatusSave: () => void;
   onOpenJournal: () => void;
   onCreateAppointment: () => void;
+  onAddPayment: (input: {
+    amount: number;
+    method: string;
+    category: string;
+    note: string;
+  }) => void;
   formatAppointmentDate: (value: string) => string;
   formatAppointmentTime: (value: string) => string;
   formatJournalDate: (value: string) => string;
@@ -110,24 +130,41 @@ function formatCurrency(value?: number | null) {
   return `${value > 0 ? "+" : ""}${value} ש״ח`;
 }
 
+function formatPaymentDate(value: string) {
+  return new Date(value).toLocaleDateString("he-IL", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
 export function PatientProfileWorkspace({
   patient,
   appointments,
+  payments,
   journalEntries,
   therapistName,
   statusDraft,
   canManagePatients,
   canManageAppointments,
   canEditClinicalNotes,
+  canManageBilling,
   onStatusDraftChange,
   onStatusSave,
   onOpenJournal,
   onCreateAppointment,
+  onAddPayment,
   formatAppointmentDate,
   formatAppointmentTime,
   formatJournalDate,
 }: PatientProfileWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("overview");
+  const [paymentForm, setPaymentForm] = useState({
+    amount: "",
+    method: "אשראי",
+    category: "מפגש טיפול",
+    note: "",
+  });
 
   if (!patient) {
     return (
@@ -144,6 +181,7 @@ export function PatientProfileWorkspace({
   const completedAppointments = appointments.length;
   const patientAge = getPatientAge(patient.birth_date);
   const paymentBalance = patient.payment_balance ?? 0;
+  const latestPayment = payments[0];
 
   const overviewItems = [
     {
@@ -467,7 +505,7 @@ export function PatientProfileWorkspace({
         <section className="workspace-panel-card">
           <div className="card-head">
             <h4>תשלומים</h4>
-            <span>מודול מקצועי בהקמה</span>
+            <span>{payments.length} תנועות</span>
           </div>
           <div className="billing-placeholder-grid">
             <div className="workspace-overview-item tone-neutral">
@@ -482,6 +520,154 @@ export function PatientProfileWorkspace({
               <span>פעולה הבאה</span>
               <strong>{patient.insurance_provider ? "בדיקת זכאות והמשך חיוב" : "הוספת ledger ותשלומים"}</strong>
             </div>
+            <div className="workspace-overview-item tone-good">
+              <span>תשלום אחרון</span>
+              <strong>
+                {latestPayment
+                  ? `${formatCurrency(latestPayment.amount)} | ${formatPaymentDate(latestPayment.payment_date)}`
+                  : "עדיין אין תשלום"}
+              </strong>
+            </div>
+          </div>
+
+          <div className="workspace-billing-layout">
+            <section className="workspace-billing-column">
+              <div className="card-head">
+                <h4>היסטוריית תשלומים</h4>
+                <span>{patient.insurance_provider ?? "ללא ביטוח"}</span>
+              </div>
+              <div className="workspace-table-wrap">
+                <table className="workspace-table">
+                  <thead>
+                    <tr>
+                      <th>תאריך</th>
+                      <th>סוג חיוב</th>
+                      <th>שיטה</th>
+                      <th>סטטוס</th>
+                      <th>סכום</th>
+                      <th>הערה</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map((payment) => (
+                      <tr key={payment.id}>
+                        <td>{formatPaymentDate(payment.payment_date)}</td>
+                        <td>{payment.category}</td>
+                        <td>{payment.method}</td>
+                        <td>{payment.status}</td>
+                        <td>{formatCurrency(payment.amount)}</td>
+                        <td>{payment.note ?? "ללא הערה"}</td>
+                      </tr>
+                    ))}
+                    {payments.length === 0 ? (
+                      <tr>
+                        <td colSpan={6}>עדיין אין תשלומים במטופל הזה.</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className="workspace-billing-column">
+              <div className="card-head">
+                <h4>הוספת תשלום</h4>
+                <span>עדכון מהיר מתוך התיק</span>
+              </div>
+              {canManageBilling ? (
+                <form
+                  className="workspace-payment-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    onAddPayment({
+                      amount: Number(paymentForm.amount),
+                      method: paymentForm.method,
+                      category: paymentForm.category,
+                      note: paymentForm.note,
+                    });
+                    setPaymentForm({
+                      amount: "",
+                      method: paymentForm.method,
+                      category: "מפגש טיפול",
+                      note: "",
+                    });
+                  }}
+                >
+                  <label className="inline-field">
+                    <span>סכום</span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={paymentForm.amount}
+                      onChange={(event) =>
+                        setPaymentForm((current) => ({
+                          ...current,
+                          amount: event.target.value,
+                        }))
+                      }
+                      placeholder="למשל 180"
+                    />
+                  </label>
+                  <label className="inline-field">
+                    <span>סוג חיוב</span>
+                    <select
+                      value={paymentForm.category}
+                      onChange={(event) =>
+                        setPaymentForm((current) => ({
+                          ...current,
+                          category: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="מפגש טיפול">מפגש טיפול</option>
+                      <option value="אבחון ראשוני">אבחון ראשוני</option>
+                      <option value="חבילת טיפולים">חבילת טיפולים</option>
+                      <option value="מקדמה">מקדמה</option>
+                    </select>
+                  </label>
+                  <label className="inline-field">
+                    <span>אמצעי תשלום</span>
+                    <select
+                      value={paymentForm.method}
+                      onChange={(event) =>
+                        setPaymentForm((current) => ({
+                          ...current,
+                          method: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="אשראי">אשראי</option>
+                      <option value="ביט">ביט</option>
+                      <option value="מזומן">מזומן</option>
+                      <option value="העברה">העברה</option>
+                      <option value="התחייבות קופה">התחייבות קופה</option>
+                    </select>
+                  </label>
+                  <label className="inline-field">
+                    <span>הערה</span>
+                    <textarea
+                      rows={4}
+                      value={paymentForm.note}
+                      onChange={(event) =>
+                        setPaymentForm((current) => ({
+                          ...current,
+                          note: event.target.value,
+                        }))
+                      }
+                      placeholder="למשל שולם במקום עבור מפגש המשך"
+                    />
+                  </label>
+                  <button className="primary-btn" type="submit">
+                    הוספת תשלום
+                  </button>
+                </form>
+              ) : (
+                <div className="empty-card">
+                  לתפקיד הנוכחי אין הרשאה להוסיף תשלומים, אבל אפשר לצפות בתנועות הקיימות.
+                </div>
+              )}
+            </section>
           </div>
         </section>
       ) : null}
