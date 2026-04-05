@@ -1378,6 +1378,30 @@ export function ClinicFlowApp({
     therapists,
   ]);
 
+  useEffect(() => {
+    if (!hasHydratedLocalWorkspace || patients.length > 0) {
+      return;
+    }
+
+    const seed = buildLocalClinicSeed();
+
+    setTherapists((current) => (current.length > 0 ? current : seed.therapists));
+    setPatients((current) => (current.length > 0 ? current : seed.patients));
+    setAppointments((current) => (current.length > 0 ? current : seed.appointments));
+    setPaymentEntries((current) => (current.length > 0 ? current : seed.paymentEntries));
+    setStatusDrafts((current) =>
+      Object.keys(current).length > 0
+        ? current
+        : Object.fromEntries(seed.patients.map((patient) => [patient.id, patient.status])),
+    );
+    setSelectedPatientId((current) => current || seed.patients[0]?.id || "");
+    setJournalEntries((current) =>
+      current.length > 0
+        ? current
+        : seed.journalEntries.filter((entry) => entry.patient_id === seed.patients[0]?.id),
+    );
+  }, [hasHydratedLocalWorkspace, patients.length]);
+
   const runDemoSeedIfNeeded = useEffectEvent(() => {
     if (
       hasHydratedLocalWorkspace
