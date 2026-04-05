@@ -1092,23 +1092,26 @@ export function ClinicFlowApp({
   initialPaymentEntries,
   accessContext,
 }: ClinicFlowAppProps) {
-  const bootstrappedClinic = useMemo(() => {
-    if (
+  const hasInitialServerData = useMemo(
+    () =>
       initialTherapists.length > 0
       || initialPatients.length > 0
       || initialAppointments.length > 0
-      || initialPaymentEntries.length > 0
-    ) {
+      || initialPaymentEntries.length > 0,
+    [
+      initialAppointments.length,
+      initialPatients.length,
+      initialPaymentEntries.length,
+      initialTherapists.length,
+    ],
+  );
+  const bootstrappedClinic = useMemo(() => {
+    if (hasInitialServerData) {
       return null;
     }
 
     return buildLocalClinicSeed();
-  }, [
-    initialAppointments.length,
-    initialPatients.length,
-    initialPaymentEntries.length,
-    initialTherapists.length,
-  ]);
+  }, [hasInitialServerData]);
   const [currentRole, setCurrentRole] = useState<AppRole>(accessContext.role);
   const visibleSections = useMemo(
     () => getVisibleSections(currentRole),
@@ -1427,6 +1430,12 @@ export function ClinicFlowApp({
       return;
     }
 
+    if (hasInitialServerData) {
+      window.localStorage.removeItem(localWorkspaceStateStorageKey);
+      setHasHydratedLocalWorkspace(true);
+      return;
+    }
+
     try {
       const snapshot = JSON.parse(rawSnapshot) as {
         therapists?: Therapist[];
@@ -1478,7 +1487,7 @@ export function ClinicFlowApp({
     } finally {
       setHasHydratedLocalWorkspace(true);
     }
-  }, []);
+  }, [hasInitialServerData]);
 
   useEffect(() => {
     if (!hasHydratedLocalWorkspace || usingLocalWorkspaceSnapshot) {
@@ -1512,7 +1521,11 @@ export function ClinicFlowApp({
   ]);
 
   useEffect(() => {
-    if (!hasHydratedLocalWorkspace || typeof window === "undefined") {
+    if (
+      !hasHydratedLocalWorkspace
+      || typeof window === "undefined"
+      || (hasInitialServerData && !usingLocalWorkspaceSnapshot)
+    ) {
       return;
     }
 
@@ -1527,12 +1540,14 @@ export function ClinicFlowApp({
     });
   }, [
     appointments,
+    hasInitialServerData,
     hasHydratedLocalWorkspace,
     journalEntries,
     patients,
     paymentEntries,
     selectedPatientId,
     statusDrafts,
+    usingLocalWorkspaceSnapshot,
     therapists,
   ]);
 
