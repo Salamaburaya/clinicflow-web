@@ -766,6 +766,34 @@ function persistLocalWorkspaceSnapshot(snapshot: {
   window.localStorage.setItem(localWorkspaceStateStorageKey, JSON.stringify(snapshot));
 }
 
+async function runClinicMutation<T>(
+  payload: Record<string, unknown>,
+): Promise<{ data?: T; error?: string }> {
+  try {
+    const response = await fetch("/api/clinicflow/mutate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = (await response.json()) as { ok?: boolean; error?: string } & T;
+
+    if (!response.ok || !result.ok) {
+      return {
+        error: result.error ?? "Clinic mutation failed",
+      };
+    }
+
+    return { data: result };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Clinic mutation failed",
+    };
+  }
+}
+
 function mergeReminderNotices(
   currentNotices: ReminderNotice[],
   nextNotices: ReminderNotice[],
@@ -1708,16 +1736,12 @@ export function ClinicFlowApp({
       functional_status: addPatientForm.functional_status.trim() || null,
     };
 
-    const query = editingPatientId
-      ? supabase
-          .from("patients")
-          .update(patientPayload)
-          .eq("id", editingPatientId)
-          .select("*")
-          .single()
-      : supabase.from("patients").insert(patientPayload).select("*").single();
-
-    const { data, error } = await query;
+    const { data: mutationResult, error } = await runClinicMutation<{ patient: Patient }>({
+      action: "savePatient",
+      editingPatientId: editingPatientId || undefined,
+      payload: patientPayload,
+    });
+    const data = mutationResult?.patient;
 
     const savedPatient: Patient = error || !data
       ? {
@@ -1727,16 +1751,23 @@ export function ClinicFlowApp({
         }
       : (data as Patient);
 
-    setPatients((current) => {
-      if (editingPatientId) {
-        return current.map((patient) => (patient.id === editingPatientId ? {
+    const nextPatients = editingPatientId
+      ? patients.map((patient) => (patient.id === editingPatientId ? {
           ...patient,
           ...savedPatient,
           payment_balance: savedPatient.payment_balance ?? patient.payment_balance ?? 0,
-        } : patient));
-      }
+        } : patient))
+      : [savedPatient, ...patients];
 
-      return [savedPatient, ...current];
+    setPatients(nextPatients);
+    persistLocalWorkspaceSnapshot({
+      therapists,
+      patients: nextPatients,
+      appointments,
+      paymentEntries,
+      journalEntries,
+      selectedPatientId: savedPatient.id,
+      statusDrafts,
     });
     setSelectedPatientId(savedPatient.id);
     setAppointmentForm((current) => ({
@@ -1770,41 +1801,46 @@ export function ClinicFlowApp({
       phone: addTherapistForm.phone.trim() || null,
     };
 
-    const query = editingTherapistId
-      ? supabase
-          .from("therapists")
-          .update(payload)
-          .eq("id", editingTherapistId)
-          .select("*")
-          .single()
-      : supabase.from("therapists").insert(payload).select("*").single();
+    const { data: mutationResult, error } = await runClinicMutation<{ therapist: Therapist }>({
+      action: "saveTherapist",
+      editingTherapistId: editingTherapistId || undefined,
+      payload,
+    });
+    const data = mutationResult?.therapist;
 
-    const { data, error } = await query;
-
-    if (error || !data) {
-      setIsAddingTherapist(false);
-      setTherapistSaveStatus(
-        editingTherapistId
-          ? "עדכון המטפל נכשל. צריך לאפשר update ב-Supabase."
-          : "הוספת המטפל נכשלה. צריך לאפשר כתיבה ב-Supabase.",
-      );
-      return;
-    }
-
-    const nextTherapist = data as Therapist;
-    setTherapists((current) => {
-      if (editingTherapistId) {
-        return current.map((therapist) =>
+    const nextTherapist = error || !data
+      ? {
+          id: editingTherapistId || crypto.randomUUID(),
+          ...payload,
+        }
+      : (data as Therapist);
+    const nextTherapists = editingTherapistId
+      ? therapists.map((therapist) =>
           therapist.id === nextTherapist.id ? nextTherapist : therapist,
-        );
-      }
-      return [...current, nextTherapist];
+        )
+      : [...therapists, nextTherapist];
+
+    setTherapists(nextTherapists);
+    persistLocalWorkspaceSnapshot({
+      therapists: nextTherapists,
+      patients,
+      appointments,
+      paymentEntries,
+      journalEntries,
+      selectedPatientId,
+      statusDrafts,
     });
     setAddTherapistForm(defaultAddTherapistForm);
     setShowTherapistDialog(false);
     setIsAddingTherapist(false);
     setEditingTherapistId("");
-    setTherapistSaveStatus("");
+    setTherapistSaveStatus(
+      error || !data
+        ? editingTherapistId
+          ? "פרטי המטפל עודכנו מקומית, אך לא נשמרו ב-Supabase."
+          : "המטפל נשמר מקומית, אך לא נכתב ל-Supabase."
+        : "",
+    );
   }
 
   function handleEditTherapist(therapist: Therapist) {
@@ -1849,15 +1885,34 @@ export function ClinicFlowApp({
     }
 
     setDeleteStatus("");
-    const { error } = await supabase.from("therapists").delete().eq("id", therapistId);
+    const { error } = await runClinicMutation({
+      action: "deleteTherapist",
+      therapistId,
+    });
 
-    if (error) {
-      setDeleteStatus("מחיקת המטפל נכשלה. צריך לאפשר delete ב-Supabase.");
-      return;
-    }
+    const nextTherapists = therapists.filter((therapist) => therapist.id !== therapistId);
+    const nextPatients = patients.map((patient) =>
+      patient.therapist_id === therapistId
+        ? { ...patient, therapist_id: null }
+        : patient,
+    );
 
-    setTherapists((current) => current.filter((therapist) => therapist.id !== therapistId));
-    setDeleteStatus("המטפל נמחק בהצלחה");
+    setTherapists(nextTherapists);
+    setPatients(nextPatients);
+    persistLocalWorkspaceSnapshot({
+      therapists: nextTherapists,
+      patients: nextPatients,
+      appointments,
+      paymentEntries,
+      journalEntries,
+      selectedPatientId,
+      statusDrafts,
+    });
+    setDeleteStatus(
+      error
+        ? "המטפל נמחק מקומית. Supabase לא קיבל כרגע את המחיקה."
+        : "המטפל נמחק בהצלחה",
+    );
   }
 
   async function handleJournalSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -1876,52 +1931,50 @@ export function ClinicFlowApp({
       phone: journalForm.phone.trim() || null,
     };
 
-    const { data: updatedPatient, error: patientError } = await supabase
-      .from("patients")
-      .update(patientPayload)
-      .eq("id", selectedPatient.id)
-      .select("*")
-      .single();
-    const patientSavedToSupabase = !patientError && Boolean(updatedPatient);
-
-    let insertedEntry: JournalEntry | null = null;
-    let journalSavedToSupabase = false;
     const noteContent = buildStructuredJournalNote(
       journalForm,
       selectedPatient.discipline,
     ).trim();
+    const journalPayload = noteContent
+      ? {
+          patient_id: selectedPatient.id,
+          therapist_id: selectedPatient.therapist_id,
+          content: noteContent,
+          home_program: journalForm.homeProgram.trim() || null,
+        }
+      : null;
 
-    const nextPatient = patientError || !updatedPatient
+    const { data: mutationResult, error: mutationError } = await runClinicMutation<{
+      patient: Patient;
+      journalEntry: JournalEntry | null;
+    }>({
+      action: "saveJournal",
+      patientId: selectedPatient.id,
+      patientPayload,
+      journalPayload,
+    });
+    const updatedPatient = mutationResult?.patient;
+    const patientSavedToSupabase = !mutationError && Boolean(updatedPatient);
+
+    let insertedEntry: JournalEntry | null = mutationResult?.journalEntry ?? null;
+    const journalSavedToSupabase = !mutationError && (!journalPayload || Boolean(insertedEntry));
+
+    const nextPatient = mutationError || !updatedPatient
       ? {
           ...selectedPatient,
           ...patientPayload,
         }
       : (updatedPatient as Patient);
-
-    if (noteContent) {
-      const { data: journalData, error: journalError } = await supabase
-        .from("journal_entries")
-        .insert({
-          patient_id: selectedPatient.id,
-          therapist_id: selectedPatient.therapist_id,
-          content: noteContent,
-          home_program: journalForm.homeProgram.trim() || null,
-        })
-        .select("*")
-        .single();
-      journalSavedToSupabase = !journalError && Boolean(journalData);
-
-      insertedEntry = !journalSavedToSupabase
-        ? {
-            id: crypto.randomUUID(),
-            patient_id: selectedPatient.id,
-            therapist_id: selectedPatient.therapist_id,
-            entry_date: new Date().toISOString().slice(0, 10),
-            content: noteContent,
-            home_program: journalForm.homeProgram.trim() || null,
-            created_at: new Date().toISOString(),
-          }
-        : (journalData as JournalEntry);
+    if (noteContent && !insertedEntry) {
+      insertedEntry = {
+        id: crypto.randomUUID(),
+        patient_id: selectedPatient.id,
+        therapist_id: selectedPatient.therapist_id,
+        entry_date: new Date().toISOString().slice(0, 10),
+        content: noteContent,
+        home_program: journalForm.homeProgram.trim() || null,
+        created_at: new Date().toISOString(),
+      };
     }
 
     const nextPatients = patients.map((patient) =>
@@ -1949,12 +2002,12 @@ export function ClinicFlowApp({
     setJournalSaveStatus(
       !patientSavedToSupabase
         ? insertedEntry && noteContent
-          ? "היומן נשמר מקומית. עדכון Supabase למטופל לא הצליח כרגע."
-          : "פרטי היומן נשמרו מקומית, אבל עדכון Supabase למטופל לא הצליח."
+          ? "היומן נשמר מקומית. שמירת השרת לא הושלמה כרגע."
+          : "פרטי היומן נשמרו מקומית, אבל שמירת השרת לא הושלמה כרגע."
         : insertedEntry && noteContent
           ? journalSavedToSupabase
             ? "היומן נשמר בהצלחה"
-            : "רשומת היומן נשמרה מקומית, למרות ש-Supabase לא קיבל את הרשומה."
+            : "רשומת היומן נשמרה מקומית, למרות שהשרת לא שמר את הרשומה."
           : "תיק המטופל עודכן בהצלחה",
     );
   }
@@ -1998,16 +2051,12 @@ export function ClinicFlowApp({
       summary: appointmentForm.summary.trim() || null,
     };
 
-    const query = editingAppointmentId
-      ? supabase
-          .from("appointments")
-          .update(payload)
-          .eq("id", editingAppointmentId)
-          .select("*")
-          .single()
-      : supabase.from("appointments").insert(payload).select("*").single();
-
-    const { data, error } = await query;
+    const { data: mutationResult, error } = await runClinicMutation<{ appointment: Appointment }>({
+      action: "saveAppointment",
+      editingAppointmentId: editingAppointmentId || undefined,
+      payload,
+    });
+    const data = mutationResult?.appointment;
     const appointmentSavedToSupabase = !error && Boolean(data);
     const nextAppointment = appointmentSavedToSupabase
       ? (data as Appointment)
@@ -2121,26 +2170,47 @@ export function ClinicFlowApp({
       return;
     }
 
-    const { data, error } = await supabase
-      .from("patients")
-      .update({ status: nextStatus })
-      .eq("id", patientId)
-      .select("*")
-      .single();
+    const { data: mutationResult, error } = await runClinicMutation<{ patient: Patient }>({
+      action: "updatePatientStatus",
+      patientId,
+      status: nextStatus,
+    });
+    const data = mutationResult?.patient;
 
-    if (error || !data) {
-      setDeleteStatus("עדכון הסטטוס נכשל. כנראה שצריך לאפשר update ב-Supabase.");
+    const currentPatient = patients.find((patient) => patient.id === patientId);
+
+    if (!currentPatient) {
       return;
     }
 
-    const updatedPatient = data as Patient;
-    setPatients((current) =>
-      current.map((patient) => (patient.id === updatedPatient.id ? updatedPatient : patient)),
+    const updatedPatient = error || !data
+      ? {
+          ...currentPatient,
+          status: nextStatus,
+        }
+      : (data as Patient);
+    const nextPatients = patients.map((patient) =>
+      patient.id === updatedPatient.id ? updatedPatient : patient,
     );
+
+    setPatients(nextPatients);
     if (selectedPatientId === updatedPatient.id) {
       setJournalForm((current) => ({ ...current, status: updatedPatient.status }));
     }
-    setDeleteStatus("סטטוס המטופל עודכן בהצלחה");
+    persistLocalWorkspaceSnapshot({
+      therapists,
+      patients: nextPatients,
+      appointments,
+      paymentEntries,
+      journalEntries,
+      selectedPatientId,
+      statusDrafts,
+    });
+    setDeleteStatus(
+      error || !data
+        ? "סטטוס המטופל עודכן מקומית. Supabase לא קיבל כרגע את השינוי."
+        : "סטטוס המטופל עודכן בהצלחה",
+    );
   }
 
   async function handleDeleteAppointment(appointmentId: string) {
@@ -2150,20 +2220,30 @@ export function ClinicFlowApp({
     }
 
     setDeleteStatus("");
-    const { error } = await supabase
-      .from("appointments")
-      .delete()
-      .eq("id", appointmentId);
+    const { error } = await runClinicMutation({
+      action: "deleteAppointment",
+      appointmentId,
+    });
 
-    if (error) {
-      setDeleteStatus("מחיקת התור נכשלה. צריך לאפשר delete ב-Supabase.");
-      return;
-    }
-
-    setAppointments((current) =>
-      current.filter((appointment) => appointment.id !== appointmentId),
+    const nextAppointments = appointments.filter(
+      (appointment) => appointment.id !== appointmentId,
     );
-    setDeleteStatus("התור נמחק בהצלחה");
+
+    setAppointments(nextAppointments);
+    persistLocalWorkspaceSnapshot({
+      therapists,
+      patients,
+      appointments: nextAppointments,
+      paymentEntries,
+      journalEntries,
+      selectedPatientId,
+      statusDrafts,
+    });
+    setDeleteStatus(
+      error
+        ? "התור נמחק מקומית. Supabase לא קיבל כרגע את המחיקה."
+        : "התור נמחק בהצלחה",
+    );
   }
 
   async function handleDeletePatient(patientId: string) {
@@ -2175,21 +2255,45 @@ export function ClinicFlowApp({
     }
 
     setDeleteStatus("");
-    const { error } = await supabase.from("patients").delete().eq("id", patientId);
-
-    if (error) {
-      setDeleteStatus("מחיקת המטופל נכשלה. צריך לאפשר delete ב-Supabase.");
-      return;
-    }
+    const { error } = await runClinicMutation({
+      action: "deletePatient",
+      patientId,
+    });
 
     const nextPatients = patients.filter((patient) => patient.id !== patientId);
-    setPatients(nextPatients);
-    setAppointments((current) =>
-      current.filter((appointment) => appointment.patient_id !== patientId),
+    const nextAppointments = appointments.filter(
+      (appointment) => appointment.patient_id !== patientId,
     );
-    setJournalEntries([]);
+    const nextPaymentEntries = paymentEntries.filter(
+      (entry) => entry.patient_id !== patientId,
+    );
+    const nextJournalEntries = journalEntries.filter(
+      (entry) => entry.patient_id !== patientId,
+    );
+    const nextStatusDrafts = Object.fromEntries(
+      Object.entries(statusDrafts).filter(([key]) => key !== patientId),
+    );
+
+    setPatients(nextPatients);
+    setAppointments(nextAppointments);
+    setPaymentEntries(nextPaymentEntries);
+    setJournalEntries(nextJournalEntries);
+    setStatusDrafts(nextStatusDrafts);
     setSelectedPatientId(nextPatients[0]?.id ?? "");
-    setDeleteStatus("המטופל נמחק בהצלחה");
+    persistLocalWorkspaceSnapshot({
+      therapists,
+      patients: nextPatients,
+      appointments: nextAppointments,
+      paymentEntries: nextPaymentEntries,
+      journalEntries: nextJournalEntries,
+      selectedPatientId: nextPatients[0]?.id ?? "",
+      statusDrafts: nextStatusDrafts,
+    });
+    setDeleteStatus(
+      error
+        ? "המטופל נמחק מקומית. Supabase לא קיבל כרגע את המחיקה."
+        : "המטופל נמחק בהצלחה",
+    );
   }
 
   function handleSelectPatient(patientId: string) {
