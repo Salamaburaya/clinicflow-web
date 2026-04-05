@@ -340,34 +340,28 @@ const journalTemplates: JournalTemplate[] = [
 
 const demoTherapists: DemoTherapistSeed[] = [
   {
-    full_name: "חן תאסיריה",
-    profession: "פיזיותרפיה",
-    specialty: "שיקום אורתופדי וספורט",
+    full_name: "חנין חאזקיה",
+    profession: "ריפוי בעיסוק",
+    specialty: "ויסות חושי, תפקוד יומיומי ועבודה עם הורים",
     phone: "0501112233",
   },
   {
-    full_name: "מאיה לוי",
-    profession: "ריפוי בעיסוק",
-    specialty: "ויסות חושי ותפקוד יומיומי",
-    phone: "0502223344",
-  },
-  {
-    full_name: "עמית כהן",
+    full_name: "מוחמד חאסקיה",
     profession: "פיזיותרפיה",
-    specialty: "שיקום נוירולוגי ומעקב תפקודי",
-    phone: "0503334455",
+    specialty: "שיקום אורתופדי, כאב ותפקוד",
+    phone: "0502223344",
   },
 ];
 
 const demoPatients: DemoPatientSeed[] = [
   {
-    full_name: "דמו נועה אלקיים",
+    full_name: "נועה אלקיים",
     discipline: "פיזיותרפיה",
     status: "בטיפול",
     diagnosis: "כאבי ברך לאחר עומס מתמשך",
     treatment_goal: "חזרה לפעילות מלאה והפחתת כאב במדרגות",
     phone: "0504445566",
-    email: "noa.demo@example.com",
+    email: "noa.elk@example.com",
     city: "חיפה",
     address: "רחוב הגפן 18",
     birth_date: "1996-07-14",
@@ -390,143 +384,28 @@ const demoPatients: DemoPatientSeed[] = [
     functional_status: "מסוגלת לעבוד, אך מגבילה קפיצות, כריעה וריצה ממושכת.",
     payment_balance: -180,
     payments: [
-      {
-        daysOffset: -12,
-        amount: 220,
-        method: "אשראי",
-        category: "אבחון ראשוני",
-        note: "חיוב ראשון דרך מסוף הקליניקה",
-      },
-      {
-        daysOffset: -5,
-        amount: 180,
-        method: "העברה",
-        category: "מפגש המשך",
-        note: "העברה בנקאית לאחר טיפול",
-      },
+      { daysOffset: -12, amount: 220, method: "אשראי", category: "אבחון ראשוני", note: "חיוב ראשון דרך מסוף הקליניקה" },
+      { daysOffset: -5, amount: 180, method: "העברה", category: "מפגש המשך", note: "העברה בנקאית לאחר טיפול" },
     ],
-    therapistName: "חן תאסיריה",
+    therapistName: "מוחמד חאסקיה",
     appointments: [
-      {
-        daysOffset: -12,
-        hour: 10,
-        minute: 0,
-        room: "חדר 2",
-        summary: "הערכה ראשונית ותוכנית עבודה",
-      },
-      {
-        daysOffset: -5,
-        hour: 11,
-        minute: 30,
-        room: "חדר 2",
-        summary: "תרגול הדרגתי ושיפור שליטה",
-      },
-      {
-        daysOffset: 3,
-        hour: 9,
-        minute: 0,
-        room: "חדר 1",
-        summary: "מעקב תפקודי והתקדמות לעומסים",
-      },
+      { daysOffset: -12, hour: 10, minute: 0, room: "חדר 2", summary: "הערכה ראשונית ותוכנית עבודה" },
+      { daysOffset: -5, hour: 11, minute: 30, room: "חדר 2", summary: "תרגול הדרגתי ושיפור שליטה" },
+      { daysOffset: 3, hour: 9, minute: 0, room: "חדר 1", summary: "מעקב תפקודי והתקדמות לעומסים" },
     ],
     journalEntries: [
-      {
-        daysOffset: -12,
-        content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: כאב בברך ימין לאחר עומס באימונים\nמצב פתיחה: קושי בעלייה במדרגות ובכריעה\nתוכנית התחלה: חיזוק הדרגתי, הפחתת עומס והדרכת בית",
-        homeProgram: "תרגילי חיזוק ירך קדמית 3 פעמים בשבוע",
-      },
-      {
-        daysOffset: -5,
-        content: "תבנית: מעקב שוטף\nהתקדמות: ירידה בעוצמת הכאב במנוחה\nמה נעשה במפגש: תרגול יציבה, שליטה ותבניות תנועה\nהחלטה להמשך: המשך עבודה הדרגתית והגדלת טווח",
-        homeProgram: "תרגול מדרגה נמוכה וסקוואט חלקי",
-      },
+      { daysOffset: -12, content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: כאב בברך ימין לאחר עומס באימונים\nמצב פתיחה: קושי בעלייה במדרגות ובכריעה\nתוכנית התחלה: חיזוק הדרגתי, הפחתת עומס והדרכת בית", homeProgram: "תרגילי חיזוק ירך קדמית 3 פעמים בשבוע" },
+      { daysOffset: -5, content: "תבנית: מעקב שוטף\nהתקדמות: ירידה בעוצמת הכאב במנוחה\nמה נעשה במפגש: תרגול יציבה, שליטה ותבניות תנועה\nהחלטה להמשך: המשך עבודה הדרגתית והגדלת טווח", homeProgram: "תרגול מדרגה נמוכה וסקוואט חלקי" },
     ],
   },
   {
-    full_name: "דמו אורי בן דוד",
-    discipline: "ריפוי בעיסוק",
-    status: "מעקב",
-    diagnosis: "קושי בהתארגנות בוקר וויסות",
-    treatment_goal: "שיפור עצמאות ברוטינת בוקר והפחתת הצפה חושית",
-    phone: "0505556677",
-    email: "uri.demo@example.com",
-    city: "קרית מוצקין",
-    address: "רחוב הדקל 7",
-    birth_date: "2016-11-03",
-    gender: "בן",
-    occupation: "תלמיד כיתה ד'",
-    referring_source: "הפניה מיועצת בית הספר",
-    intake_summary:
-      "הפניה עקב קושי בהתארגנות, מעברים ועומס חושי בשעות הבוקר. ההורים מדווחים על שחיקה גבוהה סביב היציאה למסגרת.",
-    medical_background:
-      "אבחון קודם של קשיי ויסות. ללא אשפוזים או רקע נוירולוגי משמעותי.",
-    medications: "ללא טיפול תרופתי קבוע",
-    allergies: "רגישות קלה לאבק",
-    emergency_contact_name: "שירי בן דוד",
-    emergency_contact_phone: "0526002200",
-    insurance_provider: "מכבי שלי",
-    coverage_track: "התחייבות קופה",
-    communication_preference: "טלפון להורה",
-    preferred_days: "שני, חמישי",
-    attendance_risk: "בינוני",
-    functional_status: "זקוק לתיווך במעברים, התארגנות עצמית חלקית בלבד בשעות הלחץ.",
-    payment_balance: 0,
-    payments: [
-      {
-        daysOffset: -20,
-        amount: 320,
-        method: "התחייבות קופה",
-        category: "קליטה והערכה",
-        note: "אישור קופה לחודש הראשון",
-      },
-      {
-        daysOffset: -7,
-        amount: 240,
-        method: "התחייבות קופה",
-        category: "מפגשי מעקב",
-        note: "שולם דרך מסלול הקופה",
-      },
-    ],
-    therapistName: "מאיה לוי",
-    appointments: [
-      {
-        daysOffset: -20,
-        hour: 14,
-        minute: 0,
-        room: "חדר 3",
-        summary: "אינטייק עם הורה ומיפוי מטרות",
-      },
-      {
-        daysOffset: -7,
-        hour: 15,
-        minute: 15,
-        room: "חדר 3",
-        summary: "עבודה על רצף בוקר וכלים חושיים",
-      },
-      {
-        daysOffset: 6,
-        hour: 13,
-        minute: 45,
-        room: "חדר 4",
-        summary: "מעקב תפקודי והטמעת אסטרטגיות",
-      },
-    ],
-    journalEntries: [
-      {
-        daysOffset: -20,
-        content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: קושי במעברים והתארגנות בבוקר\nמצב פתיחה: צורך בתיווך גבוה מצד ההורה\nתוכנית התחלה: בניית רצף קבוע, עזרים חזותיים והדרכה להורים",
-        homeProgram: "לוח חזותי לבוקר ונקודת בקרה אחת קבועה",
-      },
-    ],
-  },
-  {
-    full_name: "דמו רועי פרץ",
+    full_name: "יוסף סבג",
     discipline: "פיזיותרפיה",
-    status: "חדש",
+    status: "מעקב",
     diagnosis: "כאבי גב תחתון לאחר ישיבה ממושכת",
     treatment_goal: "הפחתת כאב ושיפור סבולת לישיבה ולעבודה",
     phone: "0506667788",
-    email: "roee.demo@example.com",
+    email: "yosef.sabag@example.com",
     city: "עכו",
     address: "רחוב הכלנית 3",
     birth_date: "1988-02-27",
@@ -539,7 +418,7 @@ const demoPatients: DemoPatientSeed[] = [
       "פריצת דיסק ישנה ללא ניתוח. עשה פיזיותרפיה לפני שלוש שנים עם שיפור חלקי.",
     medications: "אטופן לפי צורך פעם-פעמיים בשבוע",
     allergies: "ללא רגישויות ידועות",
-    emergency_contact_name: "יעל פרץ",
+    emergency_contact_name: "יעל סבג",
     emergency_contact_phone: "0549003300",
     insurance_provider: "כלל בריאות",
     coverage_track: "פרטי",
@@ -549,25 +428,189 @@ const demoPatients: DemoPatientSeed[] = [
     functional_status: "עובד במשרה מלאה אך קם לעיתים תכופות ומגביל נהיגה ארוכה.",
     payment_balance: 320,
     payments: [
-      {
-        daysOffset: -1,
-        amount: 180,
-        method: "ביט",
-        category: "מקדמה",
-        note: "מקדמה לשמירת סדרת טיפולים",
-      },
+      { daysOffset: -9, amount: 180, method: "ביט", category: "מקדמה", note: "מקדמה לשמירת סדרת טיפולים" },
+      { daysOffset: -2, amount: 180, method: "אשראי", category: "מפגש טיפול", note: "שולם במקום" },
     ],
-    therapistName: "עמית כהן",
+    therapistName: "מוחמד חאסקיה",
     appointments: [
-      {
-        daysOffset: 1,
-        hour: 12,
-        minute: 0,
-        room: "חדר 1",
-        summary: "אבחון ראשוני והדרכת מנח",
-      },
+      { daysOffset: -9, hour: 12, minute: 0, room: "חדר 1", summary: "אבחון ראשוני והדרכת מנח" },
+      { daysOffset: 4, hour: 17, minute: 0, room: "חדר 1", summary: "בדיקת עומסים והמשך תרגול" },
     ],
-    journalEntries: [],
+    journalEntries: [
+      { daysOffset: -9, content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: כאב גב תחתון סביב עבודה וישיבה\nמצב פתיחה: קושי בישיבה מעל 40 דקות ורכב ממושך\nתוכנית התחלה: התאמות ארגונומיות, תרגול נשימה ושליטה מותנית", homeProgram: "הפסקות תנועה כל 45 דקות ותרגילי ניידות" },
+    ],
+  },
+  {
+    full_name: "לינא מרעי",
+    discipline: "ריפוי בעיסוק",
+    status: "בטיפול",
+    diagnosis: "קושי בכתיבה ובהתארגנות בכיתה",
+    treatment_goal: "שיפור עצמאות בכיתה, אחיזת עיפרון וסבולת למשימות שולחן",
+    phone: "0507132244",
+    email: "lina.marai@example.com",
+    city: "שפרעם",
+    address: "רחוב המעיין 9",
+    birth_date: "2015-04-19",
+    gender: "בת",
+    occupation: "תלמידת כיתה ה'",
+    referring_source: "הפניה מיועצת בית הספר",
+    intake_summary:
+      "הגיעה בעקבות קושי בכתיבה ממושכת, הימנעות ממשימות שולחן ועייפות מהירה בזמן שיעורים.",
+    medical_background:
+      "ללא רקע נוירולוגי משמעותי. הערכה קודמת העלתה קושי קל במוטוריקה עדינה ובוויסות ישיבה.",
+    medications: "ללא טיפול תרופתי קבוע",
+    allergies: "רגישות קלה לפניצילין",
+    emergency_contact_name: "רנא מרעי",
+    emergency_contact_phone: "0528331144",
+    insurance_provider: "מאוחדת שיא",
+    coverage_track: "התחייבות קופה",
+    communication_preference: "טלפון לאם",
+    preferred_days: "ראשון, שלישי",
+    attendance_risk: "נמוך",
+    functional_status: "עצמאית בפעולות יום יום, אך נזקקת לתיווך בתחילת משימות לימודיות.",
+    payment_balance: 0,
+    payments: [
+      { daysOffset: -18, amount: 280, method: "התחייבות קופה", category: "הערכה", note: "שולם דרך הקופה" },
+      { daysOffset: -6, amount: 220, method: "התחייבות קופה", category: "מפגש טיפול", note: "מפגש המשך" },
+    ],
+    therapistName: "חנין חאזקיה",
+    appointments: [
+      { daysOffset: -18, hour: 14, minute: 30, room: "חדר 3", summary: "הערכה תפקודית ומיפוי מטרות" },
+      { daysOffset: -6, hour: 15, minute: 0, room: "חדר 3", summary: "תרגול מוטוריקה עדינה וארגון משימה" },
+      { daysOffset: 2, hour: 16, minute: 0, room: "חדר 4", summary: "המשך עבודה על כתיבה ועמדת ישיבה" },
+    ],
+    journalEntries: [
+      { daysOffset: -18, content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: קושי בכתיבה וארגון משימות בכיתה\nמצב פתיחה: התעייפות מהירה והימנעות ממשימות מורכבות\nתוכנית התחלה: עבודה על אחיזה, סבולת, פירוק משימות והדרכת הורים", homeProgram: "5 דקות אחיזה וצביעה מודרכת מדי יום" },
+      { daysOffset: -6, content: "תבנית: מעקב שוטף\nהתקדמות: יותר שיתוף פעולה והתחלה עצמאית קלה יותר\nמה נעשה במפגש: רצף תרגול מוטוריקה עדינה, חציית קו אמצע וארגון דף\nהחלטה להמשך: המשך חיזוק סבולת וכתיבה מודרכת", homeProgram: "דף מעקב שבועי עם משימות קצרות" },
+    ],
+  },
+  {
+    full_name: "אדם חורי",
+    discipline: "ריפוי בעיסוק",
+    status: "חדש",
+    diagnosis: "קושי במעברים, ויסות ותפקוד בוקר",
+    treatment_goal: "שיפור עצמאות בבוקר והפחתת עומס סביב יציאה למסגרת",
+    phone: "0509921148",
+    email: "adam.khouri@example.com",
+    city: "נצרת",
+    address: "רחוב אלון 24",
+    birth_date: "2017-09-02",
+    gender: "בן",
+    occupation: "גן חובה",
+    referring_source: "הפניה מרופאת התפתחות הילד",
+    intake_summary:
+      "ההורים מתארים קושי במעברים, התנגדות להתלבשות ועומס חושי ברעש ובמגע מסוים.",
+    medical_background:
+      "מעקב התפתחותי קיים. ללא אשפוזים. יש קושי בוויסות חושי ואכילה בררנית.",
+    medications: "ללא תרופות קבועות",
+    allergies: "רגישות לחלב",
+    emergency_contact_name: "סמאח חורי",
+    emergency_contact_phone: "0542211188",
+    insurance_provider: "מכבי שלי",
+    coverage_track: "אישור פתיחת סדרה",
+    communication_preference: "וואטסאפ להורה",
+    preferred_days: "שני, חמישי",
+    attendance_risk: "בינוני",
+    functional_status: "נדרש תיווך גבוה במעברים ובשגרות בוקר, שיתוף פעולה משתנה.",
+    payment_balance: 240,
+    payments: [
+      { daysOffset: -3, amount: 240, method: "אשראי", category: "קליטה והערכה", note: "טרם הושלם קיזוז מול ביטוח" },
+    ],
+    therapistName: "חנין חאזקיה",
+    appointments: [
+      { daysOffset: -3, hour: 13, minute: 0, room: "חדר 4", summary: "פגישת היכרות עם הורים ומיפוי קושי" },
+      { daysOffset: 5, hour: 13, minute: 30, room: "חדר 4", summary: "התחלת תהליך ויסות ושגרת בוקר" },
+    ],
+    journalEntries: [
+      { daysOffset: -3, content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: קושי במעברים והתארגנות בבוקר\nמצב פתיחה: עומס גבוה בזמן התארגנות ורגישות חושית בולטת\nתוכנית התחלה: בניית שגרה, עזרים חזותיים והדרכת הורים", homeProgram: "כרטיסי רצף בוקר ותרגול מעבר אחד קבוע" },
+    ],
+  },
+  {
+    full_name: "מירה אבו ריא",
+    discipline: "פיזיותרפיה",
+    status: "בטיפול",
+    diagnosis: "שיקום אחרי נקע קרסול חוזר",
+    treatment_goal: "חזרה להליכה יציבה ולריצה קלה ללא כאב",
+    phone: "0525511147",
+    email: "mira.aburia@example.com",
+    city: "טמרה",
+    address: "רחוב הזית 11",
+    birth_date: "2001-12-08",
+    gender: "אישה",
+    occupation: "סטודנטית",
+    referring_source: "הפניה מאורתופד קהילה",
+    intake_summary:
+      "לאחר שני נקעים בששת החודשים האחרונים, מדווחת על חוסר יציבות ופחד מעומס על הקרסול.",
+    medical_background:
+      "ללא ניתוחים. היסטוריה של גמישות יתר קלה וירידה בביטחון בתנועה מהירה.",
+    medications: "ללא תרופות קבועות",
+    allergies: "ללא רגישויות ידועות",
+    emergency_contact_name: "ראמי אבו ריא",
+    emergency_contact_phone: "0528800011",
+    insurance_provider: "מנורה",
+    coverage_track: "פרטי",
+    communication_preference: "וואטסאפ",
+    preferred_days: "שני, רביעי",
+    attendance_risk: "נמוך",
+    functional_status: "הולכת עצמאית אך נמנעת מהליכה מהירה, ירידה במדרגות וריצה.",
+    payment_balance: 180,
+    payments: [
+      { daysOffset: -14, amount: 180, method: "אשראי", category: "מפגש טיפול", note: "שולם עבור מפגש ראשון" },
+    ],
+    therapistName: "מוחמד חאסקיה",
+    appointments: [
+      { daysOffset: -14, hour: 9, minute: 30, room: "חדר 1", summary: "הערכה תפקודית ושיווי משקל" },
+      { daysOffset: -7, hour: 9, minute: 30, room: "חדר 1", summary: "עבודה על יציבות וקואורדינציה" },
+      { daysOffset: 1, hour: 10, minute: 0, room: "חדר 2", summary: "המשך הדרגת עומס ונחיתות" },
+    ],
+    journalEntries: [
+      { daysOffset: -14, content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: חוסר יציבות בקרסול אחרי נקעים חוזרים\nמצב פתיחה: הליכה זהירה, קושי בירידה במדרגות ופחד מריצה\nתוכנית התחלה: שיווי משקל, חיזוק פרוקסימלי והחזרה מדורגת לעומס", homeProgram: "עמידות חד רגליות ותרגילי קרסול בסיסיים" },
+      { daysOffset: -7, content: "תבנית: מעקב שוטף\nהתקדמות: בטחון מעט טוב יותר בהליכה מהירה\nמה נעשה במפגש: שיווי משקל דינמי, נחיתות ותרגול שליטה\nהחלטה להמשך: הגדלת עומס ושילוב קפיצות נמוכות", homeProgram: "תרגול נחיתות רכות וסטפים" },
+    ],
+  },
+  {
+    full_name: "ראזי נסאר",
+    discipline: "פיזיותרפיה",
+    status: "מעקב",
+    diagnosis: "כאבי צוואר וכתף עקב עבודה מול מחשב",
+    treatment_goal: "שיפור טווחים, הפחתת כאב ועבודה רציפה ללא החמרה",
+    phone: "0543311458",
+    email: "razi.nassar@example.com",
+    city: "סחנין",
+    address: "רחוב ההר 5",
+    birth_date: "1991-05-21",
+    gender: "גבר",
+    occupation: "מנהל פרויקטים",
+    referring_source: "המלצה ממטופל קיים",
+    intake_summary:
+      "מגיע עם כאב בצוואר ובכתף ימין בסוף יום עבודה, עם הקרנה קלה ועומס בישיבה ממושכת.",
+    medical_background:
+      "ללא פציעות משמעותיות. תקופות קודמות של כאב צווארי סביב עומס תעסוקתי.",
+    medications: "אתופן לפי צורך",
+    allergies: "ללא רגישויות ידועות",
+    emergency_contact_name: "דימא נסאר",
+    emergency_contact_phone: "0500007788",
+    insurance_provider: "הראל",
+    coverage_track: "פרטי",
+    communication_preference: "מייל",
+    preferred_days: "ראשון, חמישי",
+    attendance_risk: "נמוך",
+    functional_status: "עובד מלא אך עם ירידה בריכוז וכאב בסוף יום.",
+    payment_balance: -120,
+    payments: [
+      { daysOffset: -21, amount: 240, method: "אשראי", category: "אבחון + טיפול", note: "שולם מראש" },
+      { daysOffset: -10, amount: 180, method: "העברה", category: "מפגש טיפול", note: "הועבר אחרי המפגש" },
+    ],
+    therapistName: "מוחמד חאסקיה",
+    appointments: [
+      { daysOffset: -21, hour: 18, minute: 0, room: "חדר 2", summary: "בדיקת יציבה, טווחים ועמדת עבודה" },
+      { daysOffset: -10, hour: 18, minute: 0, room: "חדר 2", summary: "טכניקות שחרור ותרגול שליטה שכמתית" },
+      { daysOffset: 7, hour: 17, minute: 30, room: "חדר 2", summary: "מעקב סביב עומס עבודה והמשך תרגול" },
+    ],
+    journalEntries: [
+      { daysOffset: -21, content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: כאב צוואר וכתף סביב עבודה משרדית\nמצב פתיחה: כאב בסוף יום, ירידה בטווחי צוואר ורגישות שכמתית\nתוכנית התחלה: התאמות עמדה, תרגול יציבה והפחתת עומס", homeProgram: "מיקרו הפסקות ותרגילי תנועה כל שעתיים" },
+      { daysOffset: -10, content: "תבנית: מעקב שוטף\nהתקדמות: ירידה בעוצמת הכאב בסוף היום\nמה נעשה במפגש: שחרור רקמות, תרגילי שליטה שכמתית ועבודה על יציבה\nהחלטה להמשך: המשך עבודה סביב סבולת לישיבה וטווחים", homeProgram: "תרגילי שכמות עם גומיה קלה" },
+    ],
   },
 ];
 
@@ -592,7 +635,7 @@ const defaultAddTherapistForm: AddTherapistForm = {
 
 const reminderLogStorageKey = "clinicflow-reminder-log-v3";
 const reminderItemsStorageKey = "clinicflow-reminder-items-v3";
-const localWorkspaceStateStorageKey = "clinicflow-local-workspace-v1";
+const localWorkspaceStateStorageKey = "clinicflow-local-workspace-v2";
 const legacyReminderLogStorageKeys = [
   "clinicflow-reminder-log-v1",
   "clinicflow-reminder-log-v2",
@@ -843,7 +886,6 @@ export function ClinicFlowApp({
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
   const [editingAppointmentId, setEditingAppointmentId] = useState("");
   const [isSeedingDemo, setIsSeedingDemo] = useState(false);
-  const [demoSeedStatus, setDemoSeedStatus] = useState("");
   const [hasHydratedLocalWorkspace, setHasHydratedLocalWorkspace] = useState(false);
   const [usingLocalWorkspaceSnapshot, setUsingLocalWorkspaceSnapshot] = useState(false);
   const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>(
@@ -1837,7 +1879,6 @@ export function ClinicFlowApp({
     }
 
     setIsSeedingDemo(true);
-    setDemoSeedStatus("");
 
     try {
       const existingNames = new Set(patients.map((patient) => patient.full_name));
@@ -1846,7 +1887,6 @@ export function ClinicFlowApp({
       );
 
       if (patientsToSeed.length === 0) {
-        setDemoSeedStatus("נתוני הדמו כבר נוספו קודם. חפש מטופלים שמתחילים ב-\"דמו\"");
         return;
       }
 
@@ -1978,11 +2018,9 @@ export function ClinicFlowApp({
         ...Object.fromEntries(demoPatientRows.map((patient) => [patient.id, patient.status])),
       }));
       setSelectedPatientId(demoPatientRows[0]?.id ?? selectedPatientId);
-      setDemoSeedStatus("נטענו נתוני דמו מקומיים בהצלחה. חפש מטופלים שמתחילים ב-\"דמו\"");
       setActiveSection("patients");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "טעינת נתוני הדמו נכשלה";
-      setDemoSeedStatus(message);
+      console.error(error instanceof Error ? error.message : "טעינת נתוני הקליניקה נכשלה");
     } finally {
       setIsSeedingDemo(false);
     }
@@ -2194,18 +2232,7 @@ export function ClinicFlowApp({
                   מעבר ליומן
                 </button>
               ) : null}
-              <button
-                className="secondary-btn"
-                type="button"
-                onClick={() => {
-                  void handleLoadDemoData();
-                }}
-                disabled={isSeedingDemo}
-              >
-                {isSeedingDemo ? "טוען דמו..." : "טעינת נתוני דמו"}
-              </button>
             </div>
-            {demoSeedStatus ? <div className="demo-status-banner">{demoSeedStatus}</div> : null}
           </section>
 
           <section className={`panel ${activeSection === "dashboard" ? "active" : ""}`}>
