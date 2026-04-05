@@ -1247,11 +1247,16 @@ export function ClinicFlowApp({
   }
 
   useEffect(() => {
-    if (usingLocalWorkspaceSnapshot) {
+    if (!hasHydratedLocalWorkspace || usingLocalWorkspaceSnapshot) {
       return;
     }
     setTherapists(bootstrappedClinic?.therapists ?? initialTherapists);
-  }, [bootstrappedClinic, initialTherapists, usingLocalWorkspaceSnapshot]);
+  }, [
+    bootstrappedClinic,
+    hasHydratedLocalWorkspace,
+    initialTherapists,
+    usingLocalWorkspaceSnapshot,
+  ]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1348,7 +1353,7 @@ export function ClinicFlowApp({
   }, []);
 
   useEffect(() => {
-    if (usingLocalWorkspaceSnapshot) {
+    if (!hasHydratedLocalWorkspace || usingLocalWorkspaceSnapshot) {
       return;
     }
     setPatients(bootstrappedClinic?.patients ?? initialPatients);
@@ -1357,15 +1362,25 @@ export function ClinicFlowApp({
         (bootstrappedClinic?.patients ?? initialPatients).map((patient) => [patient.id, patient.status]),
       ),
     );
-  }, [bootstrappedClinic, initialPatients, usingLocalWorkspaceSnapshot]);
+  }, [
+    bootstrappedClinic,
+    hasHydratedLocalWorkspace,
+    initialPatients,
+    usingLocalWorkspaceSnapshot,
+  ]);
 
   useEffect(() => {
-    if (usingLocalWorkspaceSnapshot) {
+    if (!hasHydratedLocalWorkspace || usingLocalWorkspaceSnapshot) {
       return;
     }
     setAppointments(bootstrappedClinic?.appointments ?? initialAppointments);
     setPaymentEntries(bootstrappedClinic?.paymentEntries ?? []);
-  }, [bootstrappedClinic, initialAppointments, usingLocalWorkspaceSnapshot]);
+  }, [
+    bootstrappedClinic,
+    hasHydratedLocalWorkspace,
+    initialAppointments,
+    usingLocalWorkspaceSnapshot,
+  ]);
 
   useEffect(() => {
     if (!hasHydratedLocalWorkspace || typeof window === "undefined") {
