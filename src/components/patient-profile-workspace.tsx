@@ -82,6 +82,7 @@ type PatientProfileWorkspaceProps = {
   onStatusSave: () => void;
   onOpenJournal: () => void;
   onCreateAppointment: () => void;
+  onEditPatient: () => void;
   onAddPayment: (input: {
     amount: number;
     method: string;
@@ -163,6 +164,7 @@ export function PatientProfileWorkspace({
   onStatusSave,
   onOpenJournal,
   onCreateAppointment,
+  onEditPatient,
   onAddPayment,
   onUpdatePayment,
   onDeletePayment,
@@ -286,6 +288,11 @@ export function PatientProfileWorkspace({
         </div>
 
         <div className="patient-workspace-actions">
+          {canManagePatients ? (
+            <button className="secondary-btn" type="button" onClick={onEditPatient}>
+              עריכת תיק מטופל
+            </button>
+          ) : null}
           {canEditClinicalNotes ? (
             <button className="primary-btn" type="button" onClick={onOpenJournal}>
               תיעוד מפגש

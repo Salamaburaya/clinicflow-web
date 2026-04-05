@@ -122,6 +122,8 @@ type AddPatientForm = {
   allergies: string;
   medications: string;
   medical_background: string;
+  intake_summary: string;
+  functional_status: string;
 };
 
 type JournalForm = {
@@ -289,7 +291,45 @@ const defaultAddPatientForm: AddPatientForm = {
   allergies: "",
   medications: "",
   medical_background: "",
+  intake_summary: "",
+  functional_status: "",
 };
+
+function buildPatientForm(patient?: Patient | null): AddPatientForm {
+  if (!patient) {
+    return defaultAddPatientForm;
+  }
+
+  return {
+    full_name: patient.full_name,
+    discipline: patient.discipline,
+    status: patient.status,
+    diagnosis: patient.diagnosis ?? "",
+    treatment_goal: patient.treatment_goal ?? "",
+    phone: patient.phone ?? "",
+    email: patient.email ?? "",
+    city: patient.city ?? "",
+    settlement: patient.settlement ?? "",
+    address: patient.address ?? "",
+    birth_date: patient.birth_date ?? "",
+    gender: patient.gender ?? "",
+    title: patient.title ?? "",
+    occupation: patient.occupation ?? "",
+    referring_source: patient.referring_source ?? "",
+    communication_preference: patient.communication_preference ?? "",
+    insurance_provider: patient.insurance_provider ?? "",
+    coverage_track: patient.coverage_track ?? "",
+    attendance_risk: patient.attendance_risk ?? "",
+    preferred_days: patient.preferred_days ?? "",
+    emergency_contact_name: patient.emergency_contact_name ?? "",
+    emergency_contact_phone: patient.emergency_contact_phone ?? "",
+    allergies: patient.allergies ?? "",
+    medications: patient.medications ?? "",
+    medical_background: patient.medical_background ?? "",
+    intake_summary: patient.intake_summary ?? "",
+    functional_status: patient.functional_status ?? "",
+  };
+}
 
 const defaultJournalForm: JournalForm = {
   status: "חדש",
@@ -1070,6 +1110,7 @@ export function ClinicFlowApp({
   const [showJournalDialog, setShowJournalDialog] = useState(false);
   const [showAppointmentDialog, setShowAppointmentDialog] = useState(false);
   const [showTherapistDialog, setShowTherapistDialog] = useState(false);
+  const [editingPatientId, setEditingPatientId] = useState("");
   const [editingTherapistId, setEditingTherapistId] = useState("");
   const [reminderNotices, setReminderNotices] = useState<ReminderNotice[]>([]);
   const [addPatientForm, setAddPatientForm] =
@@ -1625,85 +1666,83 @@ export function ClinicFlowApp({
     const therapistId =
       defaultTherapistByDiscipline.get(addPatientForm.discipline) ?? null;
 
-    const { data, error } = await supabase
-      .from("patients")
-      .insert({
-        full_name: addPatientForm.full_name.trim(),
-        discipline: addPatientForm.discipline,
-        status: addPatientForm.status,
-        diagnosis: addPatientForm.diagnosis.trim() || null,
-        treatment_goal: addPatientForm.treatment_goal.trim() || null,
-        therapist_id: therapistId,
-        phone: addPatientForm.phone.trim() || null,
-        email: addPatientForm.email.trim() || null,
-        city: addPatientForm.city.trim() || null,
-        settlement: addPatientForm.settlement.trim() || null,
-        address: addPatientForm.address.trim() || null,
-        birth_date: addPatientForm.birth_date || null,
-        gender: addPatientForm.gender.trim() || null,
-        title: addPatientForm.title.trim() || null,
-        occupation: addPatientForm.occupation.trim() || null,
-        referring_source: addPatientForm.referring_source.trim() || null,
-        communication_preference: addPatientForm.communication_preference.trim() || null,
-        insurance_provider: addPatientForm.insurance_provider.trim() || null,
-        coverage_track: addPatientForm.coverage_track.trim() || null,
-        attendance_risk: addPatientForm.attendance_risk.trim() || null,
-        preferred_days: addPatientForm.preferred_days.trim() || null,
-        emergency_contact_name: addPatientForm.emergency_contact_name.trim() || null,
-        emergency_contact_phone: addPatientForm.emergency_contact_phone.trim() || null,
-        allergies: addPatientForm.allergies.trim() || null,
-        medications: addPatientForm.medications.trim() || null,
-        medical_background: addPatientForm.medical_background.trim() || null,
-      })
-      .select("*")
-      .single();
+    const patientPayload = {
+      full_name: addPatientForm.full_name.trim(),
+      discipline: addPatientForm.discipline,
+      status: addPatientForm.status,
+      diagnosis: addPatientForm.diagnosis.trim() || null,
+      treatment_goal: addPatientForm.treatment_goal.trim() || null,
+      therapist_id: therapistId,
+      phone: addPatientForm.phone.trim() || null,
+      email: addPatientForm.email.trim() || null,
+      city: addPatientForm.city.trim() || null,
+      settlement: addPatientForm.settlement.trim() || null,
+      address: addPatientForm.address.trim() || null,
+      birth_date: addPatientForm.birth_date || null,
+      gender: addPatientForm.gender.trim() || null,
+      title: addPatientForm.title.trim() || null,
+      occupation: addPatientForm.occupation.trim() || null,
+      referring_source: addPatientForm.referring_source.trim() || null,
+      communication_preference: addPatientForm.communication_preference.trim() || null,
+      insurance_provider: addPatientForm.insurance_provider.trim() || null,
+      coverage_track: addPatientForm.coverage_track.trim() || null,
+      attendance_risk: addPatientForm.attendance_risk.trim() || null,
+      preferred_days: addPatientForm.preferred_days.trim() || null,
+      emergency_contact_name: addPatientForm.emergency_contact_name.trim() || null,
+      emergency_contact_phone: addPatientForm.emergency_contact_phone.trim() || null,
+      allergies: addPatientForm.allergies.trim() || null,
+      medications: addPatientForm.medications.trim() || null,
+      medical_background: addPatientForm.medical_background.trim() || null,
+      intake_summary: addPatientForm.intake_summary.trim() || null,
+      functional_status: addPatientForm.functional_status.trim() || null,
+    };
 
-    const insertedPatient: Patient = error || !data
+    const query = editingPatientId
+      ? supabase
+          .from("patients")
+          .update(patientPayload)
+          .eq("id", editingPatientId)
+          .select("*")
+          .single()
+      : supabase.from("patients").insert(patientPayload).select("*").single();
+
+    const { data, error } = await query;
+
+    const savedPatient: Patient = error || !data
       ? {
-          id: crypto.randomUUID(),
-          full_name: addPatientForm.full_name.trim(),
-          discipline: addPatientForm.discipline,
-          status: addPatientForm.status,
-          diagnosis: addPatientForm.diagnosis.trim() || null,
-          treatment_goal: addPatientForm.treatment_goal.trim() || null,
-          therapist_id: therapistId,
-          phone: addPatientForm.phone.trim() || null,
-          email: addPatientForm.email.trim() || null,
-          city: addPatientForm.city.trim() || null,
-          settlement: addPatientForm.settlement.trim() || null,
-          address: addPatientForm.address.trim() || null,
-          birth_date: addPatientForm.birth_date || null,
-          gender: addPatientForm.gender.trim() || null,
-          title: addPatientForm.title.trim() || null,
-          occupation: addPatientForm.occupation.trim() || null,
-          referring_source: addPatientForm.referring_source.trim() || null,
-          communication_preference: addPatientForm.communication_preference.trim() || null,
-          insurance_provider: addPatientForm.insurance_provider.trim() || null,
-          coverage_track: addPatientForm.coverage_track.trim() || null,
-          attendance_risk: addPatientForm.attendance_risk.trim() || null,
-          preferred_days: addPatientForm.preferred_days.trim() || null,
-          emergency_contact_name: addPatientForm.emergency_contact_name.trim() || null,
-          emergency_contact_phone: addPatientForm.emergency_contact_phone.trim() || null,
-          allergies: addPatientForm.allergies.trim() || null,
-          medications: addPatientForm.medications.trim() || null,
-          medical_background: addPatientForm.medical_background.trim() || null,
+          id: editingPatientId || crypto.randomUUID(),
+          ...patientPayload,
+          payment_balance: patients.find((patient) => patient.id === editingPatientId)?.payment_balance ?? 0,
         }
       : (data as Patient);
 
-    setPatients((current) => [insertedPatient, ...current]);
-    setSelectedPatientId(insertedPatient.id);
+    setPatients((current) => {
+      if (editingPatientId) {
+        return current.map((patient) => (patient.id === editingPatientId ? {
+          ...patient,
+          ...savedPatient,
+          payment_balance: savedPatient.payment_balance ?? patient.payment_balance ?? 0,
+        } : patient));
+      }
+
+      return [savedPatient, ...current];
+    });
+    setSelectedPatientId(savedPatient.id);
     setAppointmentForm((current) => ({
       ...current,
-      patient_id: insertedPatient.id,
-      therapist_id: insertedPatient.therapist_id ?? "",
+      patient_id: savedPatient.id,
+      therapist_id: savedPatient.therapist_id ?? "",
     }));
     setAddPatientForm(defaultAddPatientForm);
+    setEditingPatientId("");
     setShowPatientDialog(false);
     setActiveSection("patients");
     setIsAddingPatient(false);
     setPatientSaveStatus(
       error || !data
-        ? "המטופל נשמר מקומית עם כל הפרטים, אך לא נכתב ל-Supabase."
+        ? editingPatientId
+          ? "פרטי המטופל עודכנו מקומית, אך לא נשמרו ב-Supabase."
+          : "המטופל נשמר מקומית עם כל הפרטים, אך לא נכתב ל-Supabase."
         : "",
     );
   }
@@ -1767,6 +1806,27 @@ export function ClinicFlowApp({
     });
     setTherapistSaveStatus("");
     setShowTherapistDialog(true);
+  }
+
+  function closePatientDialog() {
+    setShowPatientDialog(false);
+    setEditingPatientId("");
+    setAddPatientForm(defaultAddPatientForm);
+    setPatientSaveStatus("");
+  }
+
+  function openAddPatientDialog() {
+    setEditingPatientId("");
+    setAddPatientForm(defaultAddPatientForm);
+    setPatientSaveStatus("");
+    setShowPatientDialog(true);
+  }
+
+  function handleEditPatient(patient: Patient) {
+    setEditingPatientId(patient.id);
+    setAddPatientForm(buildPatientForm(patient));
+    setPatientSaveStatus("");
+    setShowPatientDialog(true);
   }
 
   async function handleDeleteTherapist(therapistId: string) {
@@ -2587,7 +2647,7 @@ export function ClinicFlowApp({
                 <button
                   className="primary-btn"
                   type="button"
-                  onClick={() => setShowPatientDialog(true)}
+                  onClick={openAddPatientDialog}
                 >
                   הוספת מטופל
                 </button>
@@ -2854,6 +2914,12 @@ export function ClinicFlowApp({
                   return;
                 }
                 handleCreateAppointmentForPatient(selectedPatient.id);
+              }}
+              onEditPatient={() => {
+                if (!selectedPatient) {
+                  return;
+                }
+                handleEditPatient(selectedPatient);
               }}
               onAddPayment={({ amount, method, category, note }) => {
                 if (!selectedPatient) {
@@ -3231,375 +3297,455 @@ export function ClinicFlowApp({
       </main>
 
       {showPatientDialog ? (
-        <div className="dialog-backdrop" onClick={() => setShowPatientDialog(false)}>
-          <div className="dialog-card" onClick={(event) => event.stopPropagation()}>
+        <div className="dialog-backdrop" onClick={closePatientDialog}>
+          <div
+            className="dialog-card patient-dialog-card"
+            onClick={(event) => event.stopPropagation()}
+          >
             <form className="dialog-form" onSubmit={handleAddPatientSubmit}>
               <div className="dialog-head">
-                <h3>הוספת מטופל</h3>
+                <div>
+                  <h3>{editingPatientId ? "עריכת תיק מטופל" : "הוספת מטופל"}</h3>
+                  <p className="item-meta">
+                    טופס מלא לניהול פרטי מטופל, תיק קליני, תקשורת ונתונים מנהליים.
+                  </p>
+                </div>
                 <button
                   type="button"
                   className="icon-btn"
-                  onClick={() => setShowPatientDialog(false)}
+                  onClick={closePatientDialog}
                 >
                   סגירה
                 </button>
               </div>
+              <div className="patient-dialog-grid">
+                <section className="patient-form-section">
+                  <div className="patient-form-section-head">
+                    <h4>פרטים בסיסיים</h4>
+                    <span>זהות, תחום טיפולי וסטטוס</span>
+                  </div>
+                  <div className="patient-form-fields">
+                    <label>
+                      שם מלא
+                      <input
+                        value={addPatientForm.full_name}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            full_name: event.target.value,
+                          }))
+                        }
+                        required
+                      />
+                    </label>
 
-              <label>
-                שם מלא
-                <input
-                  value={addPatientForm.full_name}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      full_name: event.target.value,
-                    }))
-                  }
-                  required
-                />
-              </label>
+                    <label>
+                      תחום טיפולי
+                      <select
+                        value={addPatientForm.discipline}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            discipline: event.target.value,
+                          }))
+                        }
+                        required
+                      >
+                        <option value="פיזיותרפיה">פיזיותרפיה</option>
+                        <option value="ריפוי בעיסוק">ריפוי בעיסוק</option>
+                      </select>
+                    </label>
 
-              <label>
-                תחום טיפולי
-                <select
-                  value={addPatientForm.discipline}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      discipline: event.target.value,
-                    }))
-                  }
-                  required
-                >
-                  <option value="פיזיותרפיה">פיזיותרפיה</option>
-                  <option value="ריפוי בעיסוק">ריפוי בעיסוק</option>
-                </select>
-              </label>
+                    <label>
+                      סטטוס
+                      <select
+                        value={addPatientForm.status}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            status: event.target.value,
+                          }))
+                        }
+                        required
+                      >
+                        <option value="חדש">חדש</option>
+                        <option value="בטיפול">בטיפול</option>
+                        <option value="מעקב">מעקב</option>
+                      </select>
+                    </label>
 
-              <label>
-                סטטוס
-                <select
-                  value={addPatientForm.status}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      status: event.target.value,
-                    }))
-                  }
-                  required
-                >
-                  <option value="חדש">חדש</option>
-                  <option value="בטיפול">בטיפול</option>
-                  <option value="מעקב">מעקב</option>
-                </select>
-              </label>
+                    <label>
+                      תאריך לידה
+                      <input
+                        type="date"
+                        value={addPatientForm.birth_date}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            birth_date: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
 
-              <label>
-                טלפון
-                <input
-                  value={addPatientForm.phone}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      phone: event.target.value,
-                    }))
-                  }
-                  placeholder="למשל: 0501234567"
-                />
-              </label>
+                    <label>
+                      מגדר
+                      <input
+                        value={addPatientForm.gender}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            gender: event.target.value,
+                          }))
+                        }
+                        placeholder="למשל: אישה / גבר / ילד / ילדה"
+                      />
+                    </label>
 
-              <label>
-                דוא״ל
-                <input
-                  type="email"
-                  value={addPatientForm.email}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      email: event.target.value,
-                    }))
-                  }
-                  placeholder="name@example.com"
-                />
-              </label>
+                    <label>
+                      תואר
+                      <input
+                        value={addPatientForm.title}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            title: event.target.value,
+                          }))
+                        }
+                        placeholder="למשל: סטודנטית / מנהל / תלמיד"
+                      />
+                    </label>
 
-              <label>
-                תאריך לידה
-                <input
-                  type="date"
-                  value={addPatientForm.birth_date}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      birth_date: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                    <label>
+                      עיסוק
+                      <input
+                        value={addPatientForm.occupation}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            occupation: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+                </section>
 
-              <label>
-                מגדר
-                <input
-                  value={addPatientForm.gender}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      gender: event.target.value,
-                    }))
-                  }
-                  placeholder="למשל: אישה / גבר / ילד / ילדה"
-                />
-              </label>
+                <section className="patient-form-section">
+                  <div className="patient-form-section-head">
+                    <h4>תקשורת וכתובת</h4>
+                    <span>איך יוצרים קשר ואיפה המטופל נמצא</span>
+                  </div>
+                  <div className="patient-form-fields">
+                    <label>
+                      טלפון
+                      <input
+                        value={addPatientForm.phone}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            phone: event.target.value,
+                          }))
+                        }
+                        placeholder="למשל: 0501234567"
+                      />
+                    </label>
 
-              <label>
-                עיר
-                <input
-                  value={addPatientForm.city}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      city: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                    <label>
+                      דוא״ל
+                      <input
+                        type="email"
+                        value={addPatientForm.email}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            email: event.target.value,
+                          }))
+                        }
+                        placeholder="name@example.com"
+                      />
+                    </label>
 
-              <label>
-                יישוב
-                <input
-                  value={addPatientForm.settlement}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      settlement: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                    <label>
+                      עיר
+                      <input
+                        value={addPatientForm.city}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            city: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
 
-              <label>
-                כתובת
-                <input
-                  value={addPatientForm.address}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      address: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                    <label>
+                      יישוב
+                      <input
+                        value={addPatientForm.settlement}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            settlement: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
 
-              <label>
-                תואר
-                <input
-                  value={addPatientForm.title}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      title: event.target.value,
-                    }))
-                  }
-                  placeholder="למשל: סטודנטית / מנהל / תלמיד"
-                />
-              </label>
+                    <label className="field-span-2">
+                      כתובת
+                      <input
+                        value={addPatientForm.address}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            address: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
 
-              <label>
-                עיסוק
-                <input
-                  value={addPatientForm.occupation}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      occupation: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                    <label className="field-span-2">
+                      העדפת תקשורת
+                      <input
+                        value={addPatientForm.communication_preference}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            communication_preference: event.target.value,
+                          }))
+                        }
+                        placeholder="למשל: וואטסאפ / טלפון / מייל"
+                      />
+                    </label>
+                  </div>
+                </section>
 
-              <label>
-                מקור הפניה
-                <input
-                  value={addPatientForm.referring_source}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      referring_source: event.target.value,
-                    }))
-                  }
-                  placeholder="למשל: רופא, בית ספר, המלצה"
-                />
-              </label>
+                <section className="patient-form-section">
+                  <div className="patient-form-section-head">
+                    <h4>ניהול ותפעול</h4>
+                    <span>הפניה, ביטוח ונוכחות</span>
+                  </div>
+                  <div className="patient-form-fields">
+                    <label>
+                      מקור הפניה
+                      <input
+                        value={addPatientForm.referring_source}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            referring_source: event.target.value,
+                          }))
+                        }
+                        placeholder="למשל: רופא, בית ספר, המלצה"
+                      />
+                    </label>
 
-              <label>
-                העדפת תקשורת
-                <input
-                  value={addPatientForm.communication_preference}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      communication_preference: event.target.value,
-                    }))
-                  }
-                  placeholder="למשל: וואטסאפ / טלפון / מייל"
-                />
-              </label>
+                    <label>
+                      ביטוח
+                      <input
+                        value={addPatientForm.insurance_provider}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            insurance_provider: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
 
-              <label>
-                ביטוח
-                <input
-                  value={addPatientForm.insurance_provider}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      insurance_provider: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                    <label>
+                      מסלול / כיסוי
+                      <input
+                        value={addPatientForm.coverage_track}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            coverage_track: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
 
-              <label>
-                מסלול / כיסוי
-                <input
-                  value={addPatientForm.coverage_track}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      coverage_track: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                    <label>
+                      סיכון לנשירה
+                      <input
+                        value={addPatientForm.attendance_risk}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            attendance_risk: event.target.value,
+                          }))
+                        }
+                        placeholder="למשל: נמוך / בינוני / גבוה"
+                      />
+                    </label>
 
-              <label>
-                סיכון לנשירה
-                <input
-                  value={addPatientForm.attendance_risk}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      attendance_risk: event.target.value,
-                    }))
-                  }
-                  placeholder="למשל: נמוך / בינוני / גבוה"
-                />
-              </label>
+                    <label className="field-span-2">
+                      ימי העדפה / היעדרות
+                      <input
+                        value={addPatientForm.preferred_days}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            preferred_days: event.target.value,
+                          }))
+                        }
+                        placeholder="למשל: ראשון, שלישי"
+                      />
+                    </label>
+                  </div>
+                </section>
 
-              <label>
-                ימי העדפה / היעדרות
-                <input
-                  value={addPatientForm.preferred_days}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      preferred_days: event.target.value,
-                    }))
-                  }
-                  placeholder="למשל: ראשון, שלישי"
-                />
-              </label>
+                <section className="patient-form-section">
+                  <div className="patient-form-section-head">
+                    <h4>איש קשר חירום</h4>
+                    <span>מישהו זמין במקרה הצורך</span>
+                  </div>
+                  <div className="patient-form-fields">
+                    <label>
+                      איש קשר חירום
+                      <input
+                        value={addPatientForm.emergency_contact_name}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            emergency_contact_name: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
 
-              <label>
-                איש קשר חירום
-                <input
-                  value={addPatientForm.emergency_contact_name}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      emergency_contact_name: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                    <label>
+                      טלפון חירום
+                      <input
+                        value={addPatientForm.emergency_contact_phone}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            emergency_contact_phone: event.target.value,
+                          }))
+                        }
+                        placeholder="למשל: 0501234567"
+                      />
+                    </label>
+                  </div>
+                </section>
 
-              <label>
-                טלפון חירום
-                <input
-                  value={addPatientForm.emergency_contact_phone}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      emergency_contact_phone: event.target.value,
-                    }))
-                  }
-                  placeholder="למשל: 0501234567"
-                />
-              </label>
+                <section className="patient-form-section patient-form-section-wide">
+                  <div className="patient-form-section-head">
+                    <h4>מידע קליני</h4>
+                    <span>אבחנה, רקע רפואי ותמונת תפקוד</span>
+                  </div>
+                  <div className="patient-form-fields">
+                    <label className="field-span-2">
+                      אבחנה
+                      <textarea
+                        rows={3}
+                        value={addPatientForm.diagnosis}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            diagnosis: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
 
-              <label>
-                אבחנה
-                <textarea
-                  rows={3}
-                  value={addPatientForm.diagnosis}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      diagnosis: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                    <label className="field-span-2">
+                      יעד טיפולי
+                      <textarea
+                        rows={3}
+                        value={addPatientForm.treatment_goal}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            treatment_goal: event.target.value,
+                          }))
+                        }
+                        required
+                      />
+                    </label>
 
-              <label>
-                רקע רפואי
-                <textarea
-                  rows={3}
-                  value={addPatientForm.medical_background}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      medical_background: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                    <label className="field-span-2">
+                      תקציר קליטה
+                      <textarea
+                        rows={3}
+                        value={addPatientForm.intake_summary}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            intake_summary: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
 
-              <label>
-                תרופות
-                <textarea
-                  rows={2}
-                  value={addPatientForm.medications}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      medications: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                    <label className="field-span-2">
+                      רקע רפואי
+                      <textarea
+                        rows={3}
+                        value={addPatientForm.medical_background}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            medical_background: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
 
-              <label>
-                רגישויות / אלרגיות
-                <textarea
-                  rows={2}
-                  value={addPatientForm.allergies}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      allergies: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                    <label>
+                      תרופות
+                      <textarea
+                        rows={2}
+                        value={addPatientForm.medications}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            medications: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
 
-              <label>
-                יעד טיפולי
-                <textarea
-                  rows={3}
-                  value={addPatientForm.treatment_goal}
-                  onChange={(event) =>
-                    setAddPatientForm((current) => ({
-                      ...current,
-                      treatment_goal: event.target.value,
-                    }))
-                  }
-                  required
-                />
-              </label>
+                    <label>
+                      רגישויות / אלרגיות
+                      <textarea
+                        rows={2}
+                        value={addPatientForm.allergies}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            allergies: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+
+                    <label className="field-span-2">
+                      מצב תפקודי
+                      <textarea
+                        rows={2}
+                        value={addPatientForm.functional_status}
+                        onChange={(event) =>
+                          setAddPatientForm((current) => ({
+                            ...current,
+                            functional_status: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+                </section>
+              </div>
 
               <div className="dialog-actions">
                 <button className="primary-btn" type="submit" disabled={isAddingPatient}>
-                  {isAddingPatient ? "שומר..." : "שמירת מטופל"}
+                  {isAddingPatient ? "שומר..." : editingPatientId ? "שמירת שינויים" : "שמירת מטופל"}
+                </button>
+                <button className="secondary-btn" type="button" onClick={closePatientDialog}>
+                  ביטול
                 </button>
                 <div className="item-meta">{patientSaveStatus}</div>
               </div>
