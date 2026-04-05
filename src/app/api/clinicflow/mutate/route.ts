@@ -117,6 +117,18 @@ export async function POST(request: Request) {
       }
 
       case "deleteTherapist": {
+        const affectedPatientsResult = await supabase
+          .from("patients")
+          .select("id")
+          .eq("therapist_id", body.therapistId);
+
+        if (affectedPatientsResult.error) {
+          return NextResponse.json(
+            { ok: false, error: affectedPatientsResult.error.message },
+            { status: 500 },
+          );
+        }
+
         const detachResult = await supabase
           .from("patients")
           .update({ therapist_id: null })
@@ -135,6 +147,16 @@ export async function POST(request: Request) {
           .eq("id", body.therapistId);
 
         if (error) {
+          const affectedPatientIds =
+            affectedPatientsResult.data?.map((patient) => patient.id) ?? [];
+
+          if (affectedPatientIds.length > 0) {
+            await supabase
+              .from("patients")
+              .update({ therapist_id: body.therapistId })
+              .in("id", affectedPatientIds);
+          }
+
           return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
         }
 
@@ -142,6 +164,22 @@ export async function POST(request: Request) {
       }
 
       case "saveJournal": {
+        const currentPatientResult = await supabase
+          .from("patients")
+          .select("*")
+          .eq("id", body.patientId)
+          .single();
+
+        if (currentPatientResult.error || !currentPatientResult.data) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: currentPatientResult.error?.message ?? "Patient lookup failed",
+            },
+            { status: 500 },
+          );
+        }
+
         const patientResult = await supabase
           .from("patients")
           .update(body.patientPayload)
@@ -169,11 +207,22 @@ export async function POST(request: Request) {
             .single();
 
           if (journalResult.error || !journalResult.data) {
+            const rollbackPayload = Object.fromEntries(
+              Object.keys(body.patientPayload).map((key) => [
+                key,
+                currentPatientResult.data?.[key as keyof typeof currentPatientResult.data] ?? null,
+              ]),
+            );
+
+            await supabase
+              .from("patients")
+              .update(rollbackPayload)
+              .eq("id", body.patientId);
+
             return NextResponse.json(
               {
                 ok: false,
                 error: journalResult.error?.message ?? "Journal save failed",
-                patient: patientResult.data,
               },
               { status: 500 },
             );

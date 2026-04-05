@@ -72,6 +72,10 @@ export type ClinicDashboardData = {
   errors: string[];
 };
 
+type PublicSupabaseClient = ReturnType<typeof getSupabaseClient>;
+type ServerSupabaseClient = ReturnType<typeof getServerSupabaseClient>;
+type DashboardSupabaseClient = PublicSupabaseClient | ServerSupabaseClient;
+
 function createSeedAppointment(daysOffset: number, hour: number, minute: number) {
   const date = new Date();
   date.setDate(date.getDate() + daysOffset);
@@ -107,8 +111,29 @@ export function getFallbackClinicData() {
       treatment_goal: "חזרה לפעילות מלאה והפחתת כאב במדרגות",
       therapist_id: "seed-therapist-pt",
       phone: "0504445566",
+      email: "noa.elk@example.com",
       city: "חיפה",
+      settlement: "חיפה",
+      address: "רחוב הגפן 18",
+      birth_date: "1996-07-14",
+      gender: "אישה",
+      title: "מטופלת",
       occupation: "מאמנת כושר",
+      referring_source: "הפניה מאורתופד ספורט",
+      intake_summary:
+        "הגיעה בעקבות כאב בברך ימין שמתגבר באימוני כוח, עלייה במדרגות וריצה קצרה.",
+      medical_background:
+        "היסטוריה של עומס חוזר סביב הפיקה בתקופות אימון אינטנסיביות.",
+      medications: "משכך כאב לפי צורך בלבד",
+      allergies: "ללא רגישויות ידועות",
+      emergency_contact_name: "אלון אלקיים",
+      emergency_contact_phone: "0507001100",
+      insurance_provider: "הפניקס",
+      coverage_track: "פרטי + החזר משלים",
+      communication_preference: "וואטסאפ",
+      preferred_days: "ראשון, רביעי",
+      attendance_risk: "נמוך",
+      functional_status: "מסוגלת לעבוד, אך מגבילה קפיצות, כריעה וריצה ממושכת.",
       payment_balance: -180,
     },
     {
@@ -120,8 +145,28 @@ export function getFallbackClinicData() {
       treatment_goal: "הפחתת כאב ושיפור סבולת לישיבה ולעבודה",
       therapist_id: "seed-therapist-pt",
       phone: "0506667788",
+      email: "yosef.sabag@example.com",
       city: "עכו",
+      settlement: "עכו",
+      address: "רחוב הכלנית 3",
+      birth_date: "1988-02-27",
+      gender: "גבר",
+      title: "מטופל",
       occupation: "מפתח תוכנה",
+      referring_source: "הגעה עצמאית דרך אתר הקליניקה",
+      intake_summary:
+        "מדווח על כאב גב תחתון שמתגבר לאחר ישיבה ממושכת ועבודה מול מחשב.",
+      medical_background: "פריצת דיסק ישנה ללא ניתוח.",
+      medications: "אטופן לפי צורך",
+      allergies: "ללא רגישויות ידועות",
+      emergency_contact_name: "יעל סבג",
+      emergency_contact_phone: "0549003300",
+      insurance_provider: "כלל בריאות",
+      coverage_track: "פרטי",
+      communication_preference: "מייל + וואטסאפ",
+      preferred_days: "שלישי, שישי",
+      attendance_risk: "נמוך",
+      functional_status: "עובד במשרה מלאה אך מגביל נהיגה ארוכה.",
       payment_balance: 320,
     },
     {
@@ -133,8 +178,29 @@ export function getFallbackClinicData() {
       treatment_goal: "שיפור עצמאות בכיתה, אחיזת עיפרון וסבולת למשימות שולחן",
       therapist_id: "seed-therapist-ot",
       phone: "0507132244",
+      email: "lina.marai@example.com",
       city: "שפרעם",
+      settlement: "שפרעם",
+      address: "רחוב המעיין 9",
+      birth_date: "2015-04-19",
+      gender: "בת",
+      title: "תלמידה",
       occupation: "תלמידת כיתה ה'",
+      referring_source: "הפניה מיועצת בית הספר",
+      intake_summary:
+        "הגיעה בעקבות קושי בכתיבה ממושכת, הימנעות ממשימות שולחן ועייפות מהירה בשיעורים.",
+      medical_background:
+        "הערכה קודמת העלתה קושי קל במוטוריקה עדינה ובוויסות ישיבה.",
+      medications: "ללא טיפול תרופתי קבוע",
+      allergies: "רגישות קלה לפניצילין",
+      emergency_contact_name: "רנא מרעי",
+      emergency_contact_phone: "0528331144",
+      insurance_provider: "מאוחדת שיא",
+      coverage_track: "התחייבות קופה",
+      communication_preference: "טלפון לאם",
+      preferred_days: "ראשון, שלישי",
+      attendance_risk: "נמוך",
+      functional_status: "עצמאית בפעולות יום יום, אך נזקקת לתיווך בתחילת משימות לימודיות.",
       payment_balance: 0,
     },
     {
@@ -146,8 +212,27 @@ export function getFallbackClinicData() {
       treatment_goal: "שיפור עצמאות בבוקר והפחתת עומס סביב יציאה למסגרת",
       therapist_id: "seed-therapist-ot",
       phone: "0509921148",
+      email: "adam.khouri@example.com",
       city: "נצרת",
+      settlement: "נצרת",
+      address: "רחוב אלון 24",
+      birth_date: "2017-09-02",
+      gender: "בן",
+      title: "ילד",
       occupation: "גן חובה",
+      referring_source: "הפניה מרופאת התפתחות הילד",
+      intake_summary: "ההורים מתארים קושי במעברים, התנגדות להתלבשות ועומס חושי.",
+      medical_background: "מעקב התפתחותי קיים עם קושי בוויסות חושי ואכילה בררנית.",
+      medications: "ללא תרופות קבועות",
+      allergies: "רגישות לחלב",
+      emergency_contact_name: "סמאח חורי",
+      emergency_contact_phone: "0542211188",
+      insurance_provider: "מכבי שלי",
+      coverage_track: "אישור פתיחת סדרה",
+      communication_preference: "וואטסאפ להורה",
+      preferred_days: "שני, חמישי",
+      attendance_risk: "בינוני",
+      functional_status: "נדרש תיווך גבוה במעברים ובשגרות בוקר.",
       payment_balance: 240,
     },
     {
@@ -159,8 +244,27 @@ export function getFallbackClinicData() {
       treatment_goal: "חזרה להליכה יציבה ולריצה קלה ללא כאב",
       therapist_id: "seed-therapist-pt",
       phone: "0525511147",
+      email: "mira.aburia@example.com",
       city: "טמרה",
+      settlement: "טמרה",
+      address: "רחוב הזית 11",
+      birth_date: "2001-12-08",
+      gender: "אישה",
+      title: "מטופלת",
       occupation: "סטודנטית",
+      referring_source: "הפניה מאורתופד קהילה",
+      intake_summary: "לאחר שני נקעים חוזרים מדווחת על חוסר יציבות ופחד מעומס על הקרסול.",
+      medical_background: "היסטוריה של גמישות יתר קלה וירידה בביטחון בתנועה מהירה.",
+      medications: "ללא תרופות קבועות",
+      allergies: "ללא רגישויות ידועות",
+      emergency_contact_name: "ראמי אבו ריא",
+      emergency_contact_phone: "0528800011",
+      insurance_provider: "מנורה",
+      coverage_track: "פרטי",
+      communication_preference: "וואטסאפ",
+      preferred_days: "שני, רביעי",
+      attendance_risk: "נמוך",
+      functional_status: "הולכת עצמאית אך נמנעת מהליכה מהירה ומריצה.",
       payment_balance: 180,
     },
     {
@@ -172,8 +276,27 @@ export function getFallbackClinicData() {
       treatment_goal: "שיפור טווחים, הפחתת כאב ועבודה רציפה ללא החמרה",
       therapist_id: "seed-therapist-pt",
       phone: "0543311458",
+      email: "razi.nassar@example.com",
       city: "סחנין",
+      settlement: "סחנין",
+      address: "רחוב ההר 5",
+      birth_date: "1991-05-21",
+      gender: "גבר",
+      title: "מטופל",
       occupation: "מנהל פרויקטים",
+      referring_source: "המלצה ממטופל קיים",
+      intake_summary: "כאב בצוואר ובכתף ימין בסוף יום עבודה עם הקרנה קלה.",
+      medical_background: "תקופות קודמות של כאב צווארי סביב עומס תעסוקתי.",
+      medications: "אתופן לפי צורך",
+      allergies: "ללא רגישויות ידועות",
+      emergency_contact_name: "דימא נסאר",
+      emergency_contact_phone: "0500007788",
+      insurance_provider: "הראל",
+      coverage_track: "פרטי",
+      communication_preference: "מייל",
+      preferred_days: "ראשון, חמישי",
+      attendance_risk: "נמוך",
+      functional_status: "עובד מלא אך עם ירידה בריכוז וכאב בסוף יום.",
       payment_balance: -120,
     },
   ];
@@ -274,35 +397,7 @@ export function getFallbackClinicData() {
   return { therapists, patients, appointments, paymentEntries };
 }
 
-export async function getClinicDashboardData(): Promise<ClinicDashboardData> {
-  let supabase: ReturnType<typeof getServerSupabaseClient> | ReturnType<typeof getSupabaseClient>;
-  const errors: string[] = [];
-
-  try {
-    supabase = getServerSupabaseClient();
-  } catch (error) {
-    errors.push(
-      error instanceof Error
-        ? `server-client:${error.message}`
-        : "server-client:failed",
-    );
-
-    try {
-      supabase = getSupabaseClient();
-    } catch (clientError) {
-      errors.push(
-        clientError instanceof Error
-          ? `public-client:${clientError.message}`
-          : "public-client:failed",
-      );
-
-      return {
-        ...getFallbackClinicData(),
-        errors,
-      };
-    }
-  }
-
+async function loadClinicRows(supabase: DashboardSupabaseClient): Promise<ClinicDashboardData> {
   const [therapistsResult, patientsResult, appointmentsResult, paymentEntriesResult] =
     await Promise.all([
       supabase.from("therapists").select("*").order("created_at", { ascending: true }),
@@ -318,31 +413,241 @@ export async function getClinicDashboardData(): Promise<ClinicDashboardData> {
         .order("created_at", { ascending: false }),
     ]);
 
-  const result = {
+  return {
     therapists: (therapistsResult.data ?? []) as Therapist[],
     patients: (patientsResult.data ?? []) as Patient[],
     appointments: (appointmentsResult.data ?? []) as Appointment[],
     paymentEntries: (paymentEntriesResult.data ?? []) as PaymentEntry[],
     errors: [
-      ...errors,
       therapistsResult.error?.message,
       patientsResult.error?.message,
       appointmentsResult.error?.message,
       paymentEntriesResult.error?.message,
     ].filter(Boolean) as string[],
   };
+}
 
-  if (
-    result.therapists.length === 0
-    && result.patients.length === 0
-    && result.appointments.length === 0
-    && result.paymentEntries.length === 0
-  ) {
-    return {
-      ...getFallbackClinicData(),
-      errors: result.errors,
-    };
+function hasClinicData(result: ClinicDashboardData) {
+  return (
+    result.therapists.length > 0
+    || result.patients.length > 0
+    || result.appointments.length > 0
+    || result.paymentEntries.length > 0
+  );
+}
+
+async function seedClinicDataOnServer(
+  supabase: ServerSupabaseClient,
+): Promise<ClinicDashboardData> {
+  const fallback = getFallbackClinicData();
+  const seedErrors: string[] = [];
+
+  const therapistInsertResult = await supabase
+    .from("therapists")
+    .insert(
+      fallback.therapists.map((therapist) => ({
+        full_name: therapist.full_name,
+        profession: therapist.profession,
+        specialty: therapist.specialty,
+        phone: therapist.phone,
+      })),
+    )
+    .select("*");
+
+  if (therapistInsertResult.error) {
+    seedErrors.push(`seed-therapists:${therapistInsertResult.error.message}`);
   }
 
-  return result;
+  const therapistLookupResult = await supabase
+    .from("therapists")
+    .select("*")
+    .in("full_name", fallback.therapists.map((therapist) => therapist.full_name));
+
+  const therapistRows = (therapistLookupResult.data ?? []) as Therapist[];
+  if (therapistLookupResult.error) {
+    seedErrors.push(`lookup-therapists:${therapistLookupResult.error.message}`);
+  }
+
+  const therapistIdMap = new Map<string, string>();
+  fallback.therapists.forEach((seedTherapist) => {
+    const storedTherapist = therapistRows.find(
+      (therapist) => therapist.full_name === seedTherapist.full_name,
+    );
+    if (storedTherapist) {
+      therapistIdMap.set(seedTherapist.id, storedTherapist.id);
+    }
+  });
+
+  const patientInsertResult = await supabase
+    .from("patients")
+    .insert(
+      fallback.patients.map((patient) => ({
+        full_name: patient.full_name,
+        discipline: patient.discipline,
+        status: patient.status,
+        diagnosis: patient.diagnosis,
+        treatment_goal: patient.treatment_goal,
+        therapist_id: patient.therapist_id
+          ? therapistIdMap.get(patient.therapist_id) ?? null
+          : null,
+        phone: patient.phone ?? null,
+        email: patient.email ?? null,
+        city: patient.city ?? null,
+        settlement: patient.settlement ?? null,
+        address: patient.address ?? null,
+        birth_date: patient.birth_date ?? null,
+        gender: patient.gender ?? null,
+        title: patient.title ?? null,
+        occupation: patient.occupation ?? null,
+        referring_source: patient.referring_source ?? null,
+        intake_summary: patient.intake_summary ?? null,
+        medical_background: patient.medical_background ?? null,
+        medications: patient.medications ?? null,
+        allergies: patient.allergies ?? null,
+        emergency_contact_name: patient.emergency_contact_name ?? null,
+        emergency_contact_phone: patient.emergency_contact_phone ?? null,
+        insurance_provider: patient.insurance_provider ?? null,
+        coverage_track: patient.coverage_track ?? null,
+        communication_preference: patient.communication_preference ?? null,
+        preferred_days: patient.preferred_days ?? null,
+        attendance_risk: patient.attendance_risk ?? null,
+        functional_status: patient.functional_status ?? null,
+        payment_balance: patient.payment_balance ?? 0,
+      })),
+    )
+    .select("*");
+
+  if (patientInsertResult.error) {
+    seedErrors.push(`seed-patients:${patientInsertResult.error.message}`);
+  }
+
+  const patientLookupResult = await supabase
+    .from("patients")
+    .select("*")
+    .in("full_name", fallback.patients.map((patient) => patient.full_name));
+
+  const patientRows = (patientLookupResult.data ?? []) as Patient[];
+  if (patientLookupResult.error) {
+    seedErrors.push(`lookup-patients:${patientLookupResult.error.message}`);
+  }
+
+  const patientIdMap = new Map<string, string>();
+  fallback.patients.forEach((seedPatient) => {
+    const storedPatient = patientRows.find(
+      (patient) => patient.full_name === seedPatient.full_name,
+    );
+    if (storedPatient) {
+      patientIdMap.set(seedPatient.id, storedPatient.id);
+    }
+  });
+
+  const appointmentsProbe = await supabase.from("appointments").select("id").limit(1);
+  if (appointmentsProbe.error) {
+    seedErrors.push(`probe-appointments:${appointmentsProbe.error.message}`);
+  } else if ((appointmentsProbe.data ?? []).length === 0) {
+    const appointmentInsertResult = await supabase.from("appointments").insert(
+      fallback.appointments
+        .map((appointment) => ({
+          patient_id: patientIdMap.get(appointment.patient_id) ?? null,
+          therapist_id: appointment.therapist_id
+            ? therapistIdMap.get(appointment.therapist_id) ?? null
+            : null,
+          appointment_at: appointment.appointment_at,
+          room: appointment.room,
+          status: appointment.status,
+          summary: appointment.summary,
+        }))
+        .filter((appointment) => appointment.patient_id),
+    );
+
+    if (appointmentInsertResult.error) {
+      seedErrors.push(`seed-appointments:${appointmentInsertResult.error.message}`);
+    }
+  }
+
+  const paymentsProbe = await supabase.from("payment_entries").select("id").limit(1);
+  if (paymentsProbe.error) {
+    seedErrors.push(`probe-payments:${paymentsProbe.error.message}`);
+  } else if ((paymentsProbe.data ?? []).length === 0) {
+    const paymentInsertResult = await supabase.from("payment_entries").insert(
+      fallback.paymentEntries
+        .map((entry) => ({
+          patient_id: patientIdMap.get(entry.patient_id) ?? null,
+          created_at: entry.created_at,
+          payment_date: entry.payment_date,
+          amount: entry.amount,
+          method: entry.method,
+          status: entry.status,
+          category: entry.category,
+          note: entry.note,
+        }))
+        .filter((entry) => entry.patient_id),
+    );
+
+    if (paymentInsertResult.error) {
+      seedErrors.push(`seed-payments:${paymentInsertResult.error.message}`);
+    }
+  }
+
+  const loaded = await loadClinicRows(supabase);
+  return {
+    ...loaded,
+    errors: [...seedErrors, ...loaded.errors],
+  };
+}
+
+export async function getClinicDashboardData(): Promise<ClinicDashboardData> {
+  const errors: string[] = [];
+
+  try {
+    const serverSupabase = getServerSupabaseClient();
+    const serverData = await loadClinicRows(serverSupabase);
+
+    if (hasClinicData(serverData)) {
+      return serverData;
+    }
+
+    const seededServerData = await seedClinicDataOnServer(serverSupabase);
+    if (hasClinicData(seededServerData)) {
+      return seededServerData;
+    }
+
+    return {
+      ...getFallbackClinicData(),
+      errors: [...errors, ...seededServerData.errors],
+    };
+  } catch (error) {
+    errors.push(
+      error instanceof Error
+        ? `server-client:${error.message}`
+        : "server-client:failed",
+    );
+  }
+
+  try {
+    const publicSupabase = getSupabaseClient();
+    const publicData = await loadClinicRows(publicSupabase);
+    if (hasClinicData(publicData)) {
+      return {
+        ...publicData,
+        errors: [...errors, ...publicData.errors],
+      };
+    }
+
+    return {
+      ...getFallbackClinicData(),
+      errors: [...errors, ...publicData.errors],
+    };
+  } catch (error) {
+    errors.push(
+      error instanceof Error
+        ? `public-client:${error.message}`
+        : "public-client:failed",
+    );
+  }
+
+  return {
+    ...getFallbackClinicData(),
+    errors,
+  };
 }

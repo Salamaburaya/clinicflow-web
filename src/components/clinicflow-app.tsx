@@ -14,7 +14,7 @@ import {
 } from "@/lib/clinicflow-access";
 import { normalizeWhatsAppPhone } from "@/lib/phone";
 import { PatientProfileWorkspace } from "@/components/patient-profile-workspace";
-import { useEffect, useEffectEvent, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Therapist = {
   id: string;
@@ -196,64 +196,6 @@ type ReminderNotice = {
   sentAt?: string | null;
 };
 
-type DemoTherapistSeed = {
-  full_name: string;
-  profession: string;
-  specialty: string;
-  phone: string;
-};
-
-type DemoPatientSeed = {
-  full_name: string;
-  discipline: string;
-  status: string;
-  diagnosis: string;
-  treatment_goal: string;
-  phone: string;
-  email: string;
-  city: string;
-  address: string;
-  birth_date: string;
-  gender: string;
-  occupation: string;
-  referring_source: string;
-  intake_summary: string;
-  medical_background: string;
-  medications: string;
-  allergies: string;
-  emergency_contact_name: string;
-  emergency_contact_phone: string;
-  insurance_provider: string;
-  coverage_track: string;
-  communication_preference: string;
-  preferred_days: string;
-  attendance_risk: string;
-  functional_status: string;
-  payment_balance: number;
-  payments: Array<{
-    daysOffset: number;
-    amount: number;
-    method: string;
-    status?: "completed" | "pending" | "refunded";
-    category: string;
-    note: string;
-  }>;
-  therapistName: string;
-  appointments: Array<{
-    daysOffset: number;
-    hour: number;
-    minute: number;
-    room: string;
-    summary: string;
-    status?: string;
-  }>;
-  journalEntries: Array<{
-    daysOffset: number;
-    content: string;
-    homeProgram?: string;
-  }>;
-};
-
 type JournalTemplateField = {
   key: string;
   label: string;
@@ -427,282 +369,6 @@ const journalTemplates: JournalTemplate[] = [
   },
 ];
 
-const demoTherapists: DemoTherapistSeed[] = [
-  {
-    full_name: "חנין חאזקיה",
-    profession: "ריפוי בעיסוק",
-    specialty: "ויסות חושי, תפקוד יומיומי ועבודה עם הורים",
-    phone: "0501112233",
-  },
-  {
-    full_name: "מוחמד חאסקיה",
-    profession: "פיזיותרפיה",
-    specialty: "שיקום אורתופדי, כאב ותפקוד",
-    phone: "0502223344",
-  },
-];
-
-const demoPatients: DemoPatientSeed[] = [
-  {
-    full_name: "נועה אלקיים",
-    discipline: "פיזיותרפיה",
-    status: "בטיפול",
-    diagnosis: "כאבי ברך לאחר עומס מתמשך",
-    treatment_goal: "חזרה לפעילות מלאה והפחתת כאב במדרגות",
-    phone: "0504445566",
-    email: "noa.elk@example.com",
-    city: "חיפה",
-    address: "רחוב הגפן 18",
-    birth_date: "1996-07-14",
-    gender: "אישה",
-    occupation: "מאמנת כושר",
-    referring_source: "הפניה מאורתופד ספורט",
-    intake_summary:
-      "הגיעה בעקבות כאב בברך ימין שמתגבר באימוני כוח, עלייה במדרגות וריצה קצרה. מוטיבציה גבוהה לחזור לאימונים מלאים.",
-    medical_background:
-      "ללא ניתוחים קודמים. היסטוריה של עומס חוזר סביב הפיקה בתקופות אימון אינטנסיביות.",
-    medications: "נוטלת משכך כאב לפי צורך בלבד",
-    allergies: "ללא רגישויות ידועות",
-    emergency_contact_name: "אלון אלקיים",
-    emergency_contact_phone: "0507001100",
-    insurance_provider: "הפניקס",
-    coverage_track: "פרטי + החזר משלים",
-    communication_preference: "וואטסאפ",
-    preferred_days: "ראשון, רביעי",
-    attendance_risk: "נמוך",
-    functional_status: "מסוגלת לעבוד, אך מגבילה קפיצות, כריעה וריצה ממושכת.",
-    payment_balance: -180,
-    payments: [
-      { daysOffset: -12, amount: 220, method: "אשראי", category: "אבחון ראשוני", note: "חיוב ראשון דרך מסוף הקליניקה" },
-      { daysOffset: -5, amount: 180, method: "העברה", category: "מפגש המשך", note: "העברה בנקאית לאחר טיפול" },
-    ],
-    therapistName: "מוחמד חאסקיה",
-    appointments: [
-      { daysOffset: -12, hour: 10, minute: 0, room: "חדר 2", summary: "הערכה ראשונית ותוכנית עבודה" },
-      { daysOffset: -5, hour: 11, minute: 30, room: "חדר 2", summary: "תרגול הדרגתי ושיפור שליטה" },
-      { daysOffset: 3, hour: 9, minute: 0, room: "חדר 1", summary: "מעקב תפקודי והתקדמות לעומסים" },
-    ],
-    journalEntries: [
-      { daysOffset: -12, content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: כאב בברך ימין לאחר עומס באימונים\nמצב פתיחה: קושי בעלייה במדרגות ובכריעה\nתוכנית התחלה: חיזוק הדרגתי, הפחתת עומס והדרכת בית", homeProgram: "תרגילי חיזוק ירך קדמית 3 פעמים בשבוע" },
-      { daysOffset: -5, content: "תבנית: מעקב שוטף\nהתקדמות: ירידה בעוצמת הכאב במנוחה\nמה נעשה במפגש: תרגול יציבה, שליטה ותבניות תנועה\nהחלטה להמשך: המשך עבודה הדרגתית והגדלת טווח", homeProgram: "תרגול מדרגה נמוכה וסקוואט חלקי" },
-    ],
-  },
-  {
-    full_name: "יוסף סבג",
-    discipline: "פיזיותרפיה",
-    status: "מעקב",
-    diagnosis: "כאבי גב תחתון לאחר ישיבה ממושכת",
-    treatment_goal: "הפחתת כאב ושיפור סבולת לישיבה ולעבודה",
-    phone: "0506667788",
-    email: "yosef.sabag@example.com",
-    city: "עכו",
-    address: "רחוב הכלנית 3",
-    birth_date: "1988-02-27",
-    gender: "גבר",
-    occupation: "מפתח תוכנה",
-    referring_source: "הגעה עצמאית דרך אתר הקליניקה",
-    intake_summary:
-      "מדווח על כאב גב תחתון שמתגבר לאחר ישיבה ממושכת ועבודה מול מחשב. מחפש פתרון פרקטי לשילוב ביום עבודה.",
-    medical_background:
-      "פריצת דיסק ישנה ללא ניתוח. עשה פיזיותרפיה לפני שלוש שנים עם שיפור חלקי.",
-    medications: "אטופן לפי צורך פעם-פעמיים בשבוע",
-    allergies: "ללא רגישויות ידועות",
-    emergency_contact_name: "יעל סבג",
-    emergency_contact_phone: "0549003300",
-    insurance_provider: "כלל בריאות",
-    coverage_track: "פרטי",
-    communication_preference: "מייל + וואטסאפ",
-    preferred_days: "שלישי, שישי",
-    attendance_risk: "נמוך",
-    functional_status: "עובד במשרה מלאה אך קם לעיתים תכופות ומגביל נהיגה ארוכה.",
-    payment_balance: 320,
-    payments: [
-      { daysOffset: -9, amount: 180, method: "ביט", category: "מקדמה", note: "מקדמה לשמירת סדרת טיפולים" },
-      { daysOffset: -2, amount: 180, method: "אשראי", category: "מפגש טיפול", note: "שולם במקום" },
-    ],
-    therapistName: "מוחמד חאסקיה",
-    appointments: [
-      { daysOffset: -9, hour: 12, minute: 0, room: "חדר 1", summary: "אבחון ראשוני והדרכת מנח" },
-      { daysOffset: 4, hour: 17, minute: 0, room: "חדר 1", summary: "בדיקת עומסים והמשך תרגול" },
-    ],
-    journalEntries: [
-      { daysOffset: -9, content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: כאב גב תחתון סביב עבודה וישיבה\nמצב פתיחה: קושי בישיבה מעל 40 דקות ורכב ממושך\nתוכנית התחלה: התאמות ארגונומיות, תרגול נשימה ושליטה מותנית", homeProgram: "הפסקות תנועה כל 45 דקות ותרגילי ניידות" },
-    ],
-  },
-  {
-    full_name: "לינא מרעי",
-    discipline: "ריפוי בעיסוק",
-    status: "בטיפול",
-    diagnosis: "קושי בכתיבה ובהתארגנות בכיתה",
-    treatment_goal: "שיפור עצמאות בכיתה, אחיזת עיפרון וסבולת למשימות שולחן",
-    phone: "0507132244",
-    email: "lina.marai@example.com",
-    city: "שפרעם",
-    address: "רחוב המעיין 9",
-    birth_date: "2015-04-19",
-    gender: "בת",
-    occupation: "תלמידת כיתה ה'",
-    referring_source: "הפניה מיועצת בית הספר",
-    intake_summary:
-      "הגיעה בעקבות קושי בכתיבה ממושכת, הימנעות ממשימות שולחן ועייפות מהירה בזמן שיעורים.",
-    medical_background:
-      "ללא רקע נוירולוגי משמעותי. הערכה קודמת העלתה קושי קל במוטוריקה עדינה ובוויסות ישיבה.",
-    medications: "ללא טיפול תרופתי קבוע",
-    allergies: "רגישות קלה לפניצילין",
-    emergency_contact_name: "רנא מרעי",
-    emergency_contact_phone: "0528331144",
-    insurance_provider: "מאוחדת שיא",
-    coverage_track: "התחייבות קופה",
-    communication_preference: "טלפון לאם",
-    preferred_days: "ראשון, שלישי",
-    attendance_risk: "נמוך",
-    functional_status: "עצמאית בפעולות יום יום, אך נזקקת לתיווך בתחילת משימות לימודיות.",
-    payment_balance: 0,
-    payments: [
-      { daysOffset: -18, amount: 280, method: "התחייבות קופה", category: "הערכה", note: "שולם דרך הקופה" },
-      { daysOffset: -6, amount: 220, method: "התחייבות קופה", category: "מפגש טיפול", note: "מפגש המשך" },
-    ],
-    therapistName: "חנין חאזקיה",
-    appointments: [
-      { daysOffset: -18, hour: 14, minute: 30, room: "חדר 3", summary: "הערכה תפקודית ומיפוי מטרות" },
-      { daysOffset: -6, hour: 15, minute: 0, room: "חדר 3", summary: "תרגול מוטוריקה עדינה וארגון משימה" },
-      { daysOffset: 2, hour: 16, minute: 0, room: "חדר 4", summary: "המשך עבודה על כתיבה ועמדת ישיבה" },
-    ],
-    journalEntries: [
-      { daysOffset: -18, content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: קושי בכתיבה וארגון משימות בכיתה\nמצב פתיחה: התעייפות מהירה והימנעות ממשימות מורכבות\nתוכנית התחלה: עבודה על אחיזה, סבולת, פירוק משימות והדרכת הורים", homeProgram: "5 דקות אחיזה וצביעה מודרכת מדי יום" },
-      { daysOffset: -6, content: "תבנית: מעקב שוטף\nהתקדמות: יותר שיתוף פעולה והתחלה עצמאית קלה יותר\nמה נעשה במפגש: רצף תרגול מוטוריקה עדינה, חציית קו אמצע וארגון דף\nהחלטה להמשך: המשך חיזוק סבולת וכתיבה מודרכת", homeProgram: "דף מעקב שבועי עם משימות קצרות" },
-    ],
-  },
-  {
-    full_name: "אדם חורי",
-    discipline: "ריפוי בעיסוק",
-    status: "חדש",
-    diagnosis: "קושי במעברים, ויסות ותפקוד בוקר",
-    treatment_goal: "שיפור עצמאות בבוקר והפחתת עומס סביב יציאה למסגרת",
-    phone: "0509921148",
-    email: "adam.khouri@example.com",
-    city: "נצרת",
-    address: "רחוב אלון 24",
-    birth_date: "2017-09-02",
-    gender: "בן",
-    occupation: "גן חובה",
-    referring_source: "הפניה מרופאת התפתחות הילד",
-    intake_summary:
-      "ההורים מתארים קושי במעברים, התנגדות להתלבשות ועומס חושי ברעש ובמגע מסוים.",
-    medical_background:
-      "מעקב התפתחותי קיים. ללא אשפוזים. יש קושי בוויסות חושי ואכילה בררנית.",
-    medications: "ללא תרופות קבועות",
-    allergies: "רגישות לחלב",
-    emergency_contact_name: "סמאח חורי",
-    emergency_contact_phone: "0542211188",
-    insurance_provider: "מכבי שלי",
-    coverage_track: "אישור פתיחת סדרה",
-    communication_preference: "וואטסאפ להורה",
-    preferred_days: "שני, חמישי",
-    attendance_risk: "בינוני",
-    functional_status: "נדרש תיווך גבוה במעברים ובשגרות בוקר, שיתוף פעולה משתנה.",
-    payment_balance: 240,
-    payments: [
-      { daysOffset: -3, amount: 240, method: "אשראי", category: "קליטה והערכה", note: "טרם הושלם קיזוז מול ביטוח" },
-    ],
-    therapistName: "חנין חאזקיה",
-    appointments: [
-      { daysOffset: -3, hour: 13, minute: 0, room: "חדר 4", summary: "פגישת היכרות עם הורים ומיפוי קושי" },
-      { daysOffset: 5, hour: 13, minute: 30, room: "חדר 4", summary: "התחלת תהליך ויסות ושגרת בוקר" },
-    ],
-    journalEntries: [
-      { daysOffset: -3, content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: קושי במעברים והתארגנות בבוקר\nמצב פתיחה: עומס גבוה בזמן התארגנות ורגישות חושית בולטת\nתוכנית התחלה: בניית שגרה, עזרים חזותיים והדרכת הורים", homeProgram: "כרטיסי רצף בוקר ותרגול מעבר אחד קבוע" },
-    ],
-  },
-  {
-    full_name: "מירה אבו ריא",
-    discipline: "פיזיותרפיה",
-    status: "בטיפול",
-    diagnosis: "שיקום אחרי נקע קרסול חוזר",
-    treatment_goal: "חזרה להליכה יציבה ולריצה קלה ללא כאב",
-    phone: "0525511147",
-    email: "mira.aburia@example.com",
-    city: "טמרה",
-    address: "רחוב הזית 11",
-    birth_date: "2001-12-08",
-    gender: "אישה",
-    occupation: "סטודנטית",
-    referring_source: "הפניה מאורתופד קהילה",
-    intake_summary:
-      "לאחר שני נקעים בששת החודשים האחרונים, מדווחת על חוסר יציבות ופחד מעומס על הקרסול.",
-    medical_background:
-      "ללא ניתוחים. היסטוריה של גמישות יתר קלה וירידה בביטחון בתנועה מהירה.",
-    medications: "ללא תרופות קבועות",
-    allergies: "ללא רגישויות ידועות",
-    emergency_contact_name: "ראמי אבו ריא",
-    emergency_contact_phone: "0528800011",
-    insurance_provider: "מנורה",
-    coverage_track: "פרטי",
-    communication_preference: "וואטסאפ",
-    preferred_days: "שני, רביעי",
-    attendance_risk: "נמוך",
-    functional_status: "הולכת עצמאית אך נמנעת מהליכה מהירה, ירידה במדרגות וריצה.",
-    payment_balance: 180,
-    payments: [
-      { daysOffset: -14, amount: 180, method: "אשראי", category: "מפגש טיפול", note: "שולם עבור מפגש ראשון" },
-    ],
-    therapistName: "מוחמד חאסקיה",
-    appointments: [
-      { daysOffset: -14, hour: 9, minute: 30, room: "חדר 1", summary: "הערכה תפקודית ושיווי משקל" },
-      { daysOffset: -7, hour: 9, minute: 30, room: "חדר 1", summary: "עבודה על יציבות וקואורדינציה" },
-      { daysOffset: 1, hour: 10, minute: 0, room: "חדר 2", summary: "המשך הדרגת עומס ונחיתות" },
-    ],
-    journalEntries: [
-      { daysOffset: -14, content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: חוסר יציבות בקרסול אחרי נקעים חוזרים\nמצב פתיחה: הליכה זהירה, קושי בירידה במדרגות ופחד מריצה\nתוכנית התחלה: שיווי משקל, חיזוק פרוקסימלי והחזרה מדורגת לעומס", homeProgram: "עמידות חד רגליות ותרגילי קרסול בסיסיים" },
-      { daysOffset: -7, content: "תבנית: מעקב שוטף\nהתקדמות: בטחון מעט טוב יותר בהליכה מהירה\nמה נעשה במפגש: שיווי משקל דינמי, נחיתות ותרגול שליטה\nהחלטה להמשך: הגדלת עומס ושילוב קפיצות נמוכות", homeProgram: "תרגול נחיתות רכות וסטפים" },
-    ],
-  },
-  {
-    full_name: "ראזי נסאר",
-    discipline: "פיזיותרפיה",
-    status: "מעקב",
-    diagnosis: "כאבי צוואר וכתף עקב עבודה מול מחשב",
-    treatment_goal: "שיפור טווחים, הפחתת כאב ועבודה רציפה ללא החמרה",
-    phone: "0543311458",
-    email: "razi.nassar@example.com",
-    city: "סחנין",
-    address: "רחוב ההר 5",
-    birth_date: "1991-05-21",
-    gender: "גבר",
-    occupation: "מנהל פרויקטים",
-    referring_source: "המלצה ממטופל קיים",
-    intake_summary:
-      "מגיע עם כאב בצוואר ובכתף ימין בסוף יום עבודה, עם הקרנה קלה ועומס בישיבה ממושכת.",
-    medical_background:
-      "ללא פציעות משמעותיות. תקופות קודמות של כאב צווארי סביב עומס תעסוקתי.",
-    medications: "אתופן לפי צורך",
-    allergies: "ללא רגישויות ידועות",
-    emergency_contact_name: "דימא נסאר",
-    emergency_contact_phone: "0500007788",
-    insurance_provider: "הראל",
-    coverage_track: "פרטי",
-    communication_preference: "מייל",
-    preferred_days: "ראשון, חמישי",
-    attendance_risk: "נמוך",
-    functional_status: "עובד מלא אך עם ירידה בריכוז וכאב בסוף יום.",
-    payment_balance: -120,
-    payments: [
-      { daysOffset: -21, amount: 240, method: "אשראי", category: "אבחון + טיפול", note: "שולם מראש" },
-      { daysOffset: -10, amount: 180, method: "העברה", category: "מפגש טיפול", note: "הועבר אחרי המפגש" },
-    ],
-    therapistName: "מוחמד חאסקיה",
-    appointments: [
-      { daysOffset: -21, hour: 18, minute: 0, room: "חדר 2", summary: "בדיקת יציבה, טווחים ועמדת עבודה" },
-      { daysOffset: -10, hour: 18, minute: 0, room: "חדר 2", summary: "טכניקות שחרור ותרגול שליטה שכמתית" },
-      { daysOffset: 7, hour: 17, minute: 30, room: "חדר 2", summary: "מעקב סביב עומס עבודה והמשך תרגול" },
-    ],
-    journalEntries: [
-      { daysOffset: -21, content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: כאב צוואר וכתף סביב עבודה משרדית\nמצב פתיחה: כאב בסוף יום, ירידה בטווחי צוואר ורגישות שכמתית\nתוכנית התחלה: התאמות עמדה, תרגול יציבה והפחתת עומס", homeProgram: "מיקרו הפסקות ותרגילי תנועה כל שעתיים" },
-      { daysOffset: -10, content: "תבנית: מעקב שוטף\nהתקדמות: ירידה בעוצמת הכאב בסוף היום\nמה נעשה במפגש: שחרור רקמות, תרגילי שליטה שכמתית ועבודה על יציבה\nהחלטה להמשך: המשך עבודה סביב סבולת לישיבה וטווחים", homeProgram: "תרגילי שכמות עם גומיה קלה" },
-    ],
-  },
-];
-
 const defaultAppointmentForm: AppointmentForm = {
   patient_id: "",
   therapist_id: "",
@@ -752,22 +418,6 @@ function persistReminderNoticesToStorage(nextNotices: ReminderNotice[]) {
     reminderItemsStorageKey,
     JSON.stringify(nextNotices.map(normalizeReminderNotice)),
   );
-}
-
-function persistLocalWorkspaceSnapshot(snapshot: {
-  therapists: Therapist[];
-  patients: Patient[];
-  appointments: Appointment[];
-  paymentEntries: PaymentEntry[];
-  journalEntries?: JournalEntry[];
-  selectedPatientId: string;
-  statusDrafts: Record<string, string>;
-}) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(localWorkspaceStateStorageKey, JSON.stringify(snapshot));
 }
 
 async function runClinicMutation<T>(
@@ -930,124 +580,6 @@ function formatJournalDate(value: string) {
   });
 }
 
-function buildLocalClinicSeed() {
-  const therapistRows: Therapist[] = demoTherapists.map((therapist) => ({
-    id: crypto.randomUUID(),
-    full_name: therapist.full_name,
-    profession: therapist.profession,
-    specialty: therapist.specialty,
-    phone: therapist.phone,
-  }));
-
-  const therapistMap = new Map(
-    therapistRows.map((therapist) => [therapist.full_name, therapist]),
-  );
-
-  const patientRows: Patient[] = demoPatients.map((patient) => ({
-    id: crypto.randomUUID(),
-    full_name: patient.full_name,
-    discipline: patient.discipline,
-    status: patient.status,
-    diagnosis: patient.diagnosis,
-    treatment_goal: patient.treatment_goal,
-    therapist_id: therapistMap.get(patient.therapistName)?.id ?? null,
-    phone: patient.phone,
-    email: patient.email,
-    city: patient.city,
-    settlement: patient.city,
-    address: patient.address,
-    birth_date: patient.birth_date,
-    gender: patient.gender,
-    title: patient.occupation,
-    occupation: patient.occupation,
-    referring_source: patient.referring_source,
-    intake_summary: patient.intake_summary,
-    medical_background: patient.medical_background,
-    medications: patient.medications,
-    allergies: patient.allergies,
-    emergency_contact_name: patient.emergency_contact_name,
-    emergency_contact_phone: patient.emergency_contact_phone,
-    insurance_provider: patient.insurance_provider,
-    coverage_track: patient.coverage_track,
-    communication_preference: patient.communication_preference,
-    preferred_days: patient.preferred_days,
-    attendance_risk: patient.attendance_risk,
-    functional_status: patient.functional_status,
-    payment_balance: patient.payment_balance,
-  }));
-
-  const patientMap = new Map(patientRows.map((patient) => [patient.full_name, patient]));
-
-  const appointmentRows: Appointment[] = demoPatients
-    .flatMap((patient) =>
-      patient.appointments.map((appointment) => {
-        const date = new Date();
-        date.setDate(date.getDate() + appointment.daysOffset);
-        date.setHours(appointment.hour, appointment.minute, 0, 0);
-
-        return {
-          id: crypto.randomUUID(),
-          patient_id: patientMap.get(patient.full_name)?.id ?? "",
-          therapist_id: therapistMap.get(patient.therapistName)?.id ?? null,
-          appointment_at: date.toISOString(),
-          room: appointment.room,
-          status: appointment.status ?? "scheduled",
-          summary: appointment.summary,
-        };
-      }),
-    )
-    .sort(
-      (a, b) =>
-        new Date(a.appointment_at).getTime() - new Date(b.appointment_at).getTime(),
-    );
-
-  const journalRows: JournalEntry[] = demoPatients.flatMap((patient) =>
-    patient.journalEntries.map((entry) => {
-      const date = new Date();
-      date.setDate(date.getDate() + entry.daysOffset);
-      date.setHours(9, 0, 0, 0);
-
-      return {
-        id: crypto.randomUUID(),
-        patient_id: patientMap.get(patient.full_name)?.id ?? "",
-        therapist_id: therapistMap.get(patient.therapistName)?.id ?? null,
-        entry_date: date.toISOString().slice(0, 10),
-        content: entry.content,
-        home_program: entry.homeProgram ?? null,
-        created_at: date.toISOString(),
-      };
-    }),
-  );
-
-  const paymentRows: PaymentEntry[] = demoPatients.flatMap((patient) =>
-    patient.payments.map((payment) => {
-      const date = new Date();
-      date.setDate(date.getDate() + payment.daysOffset);
-      date.setHours(12, 0, 0, 0);
-
-      return {
-        id: crypto.randomUUID(),
-        patient_id: patientMap.get(patient.full_name)?.id ?? "",
-        created_at: date.toISOString(),
-        payment_date: date.toISOString(),
-        amount: payment.amount,
-        method: payment.method,
-        status: payment.status ?? "completed",
-        category: payment.category,
-        note: payment.note,
-      };
-    }),
-  );
-
-  return {
-    therapists: therapistRows,
-    patients: patientRows,
-    appointments: appointmentRows,
-    journalEntries: journalRows,
-    paymentEntries: paymentRows,
-  };
-}
-
 function getAppointmentFormParts(value: string) {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jerusalem",
@@ -1099,29 +631,8 @@ export function ClinicFlowApp({
   displayMode = "full",
   focusedPatientId,
 }: ClinicFlowAppProps) {
-  const hasInitialServerData = useMemo(
-    () =>
-      initialTherapists.length > 0
-      || initialPatients.length > 0
-      || initialAppointments.length > 0
-      || initialPaymentEntries.length > 0,
-    [
-      initialAppointments.length,
-      initialPatients.length,
-      initialPaymentEntries.length,
-      initialTherapists.length,
-    ],
-  );
-  const bootstrappedClinic = useMemo(() => {
-    if (hasInitialServerData) {
-      return null;
-    }
-
-    return buildLocalClinicSeed();
-  }, [hasInitialServerData]);
-  const initialPatientPool = bootstrappedClinic?.patients ?? initialPatients;
   const initialSelectedPatientId =
-    (focusedPatientId ?? initialPatientPool[0]?.id) ?? "";
+    (focusedPatientId ?? initialPatients[0]?.id) ?? "";
   const [currentRole, setCurrentRole] = useState<AppRole>(accessContext.role);
   const visibleSections = useMemo(
     () => getVisibleSections(currentRole),
@@ -1150,43 +661,57 @@ export function ClinicFlowApp({
   const [activeSection, setActiveSection] = useState<AppSection>(
     defaultSection,
   );
-  const [therapists, setTherapists] = useState(
-    () => bootstrappedClinic?.therapists ?? initialTherapists,
-  );
-  const [patients, setPatients] = useState(
-    () => bootstrappedClinic?.patients ?? initialPatients,
-  );
-  const [appointments, setAppointments] = useState(
-    () => bootstrappedClinic?.appointments ?? initialAppointments,
-  );
+  const resolvedActiveSection = navigationSections.some(
+    (section) => section.key === activeSection,
+  )
+    ? activeSection
+    : defaultSection;
+  const [therapists, setTherapists] = useState(() => initialTherapists);
+  const [patients, setPatients] = useState(() => initialPatients);
+  const [appointments, setAppointments] = useState(() => initialAppointments);
   const [paymentEntries, setPaymentEntries] = useState<PaymentEntry[]>(
-    () => bootstrappedClinic?.paymentEntries ?? initialPaymentEntries,
+    () => initialPaymentEntries,
   );
   const [search, setSearch] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState(
     initialSelectedPatientId,
   );
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(
-    () =>
-      bootstrappedClinic
-        ? bootstrappedClinic.journalEntries.filter(
-            (entry) => entry.patient_id === bootstrappedClinic.patients[0]?.id,
-          )
-        : [],
-  );
+  const effectiveSelectedPatientId = focusedPatientId ?? selectedPatientId;
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [showPatientDialog, setShowPatientDialog] = useState(false);
   const [showJournalDialog, setShowJournalDialog] = useState(false);
   const [showAppointmentDialog, setShowAppointmentDialog] = useState(false);
   const [showTherapistDialog, setShowTherapistDialog] = useState(false);
   const [editingPatientId, setEditingPatientId] = useState("");
   const [editingTherapistId, setEditingTherapistId] = useState("");
-  const [reminderNotices, setReminderNotices] = useState<ReminderNotice[]>([]);
+  const [reminderNotices, setReminderNotices] = useState<ReminderNotice[]>(() => {
+    if (typeof window === "undefined") {
+      return [];
+    }
+
+    const storedNotices = window.localStorage.getItem(reminderItemsStorageKey);
+    if (!storedNotices) {
+      return [];
+    }
+
+    try {
+      return mergeReminderNotices(
+        [],
+        (JSON.parse(storedNotices) as ReminderNotice[])
+          .map(normalizeReminderNotice)
+          .filter(isPatientReminderNotice),
+      );
+    } catch {
+      window.localStorage.removeItem(reminderItemsStorageKey);
+      return [];
+    }
+  });
   const [addPatientForm, setAddPatientForm] =
     useState<AddPatientForm>(defaultAddPatientForm);
   const [addTherapistForm, setAddTherapistForm] =
     useState<AddTherapistForm>(defaultAddTherapistForm);
   const [journalForm, setJournalForm] = useState<JournalForm>(() =>
-    buildJournalForm(bootstrappedClinic?.patients[0] ?? initialPatients[0]),
+    buildJournalForm(initialPatients[0]),
   );
   const [patientSaveStatus, setPatientSaveStatus] = useState("");
   const [therapistSaveStatus, setTherapistSaveStatus] = useState("");
@@ -1198,17 +723,14 @@ export function ClinicFlowApp({
   const [isSavingJournal, setIsSavingJournal] = useState(false);
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
   const [editingAppointmentId, setEditingAppointmentId] = useState("");
-  const [isSeedingDemo, setIsSeedingDemo] = useState(false);
-  const [hasHydratedLocalWorkspace, setHasHydratedLocalWorkspace] = useState(false);
-  const [usingLocalWorkspaceSnapshot, setUsingLocalWorkspaceSnapshot] = useState(false);
   const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>(
     Object.fromEntries(
-      (bootstrappedClinic?.patients ?? initialPatients).map((patient) => [patient.id, patient.status]),
+      initialPatients.map((patient) => [patient.id, patient.status]),
     ),
   );
   const initialFocusedPatient =
-    initialPatientPool.find((patient) => patient.id === initialSelectedPatientId)
-    ?? initialPatientPool[0];
+    initialPatients.find((patient) => patient.id === initialSelectedPatientId)
+    ?? initialPatients[0];
   const [appointmentForm, setAppointmentForm] = useState<AppointmentForm>({
     ...defaultAppointmentForm,
     patient_id: initialSelectedPatientId,
@@ -1237,17 +759,12 @@ export function ClinicFlowApp({
   const isPatientsDirectoryMode = displayMode === "patients";
   const isPatientRecordMode = displayMode === "patient-record";
   const selectedPatient = isPatientRecordMode
-    ? patients.find((patient) => patient.id === selectedPatientId)
-    : patients.find((patient) => patient.id === selectedPatientId) ?? patients[0];
-  const isWaitingForFocusedPatient =
-    isPatientRecordMode
-    && Boolean(focusedPatientId)
-    && !hasHydratedLocalWorkspace
-    && !selectedPatient;
+    ? patients.find((patient) => patient.id === effectiveSelectedPatientId)
+    : patients.find((patient) => patient.id === effectiveSelectedPatientId) ?? patients[0];
+  const isWaitingForFocusedPatient = false;
   const isMissingFocusedPatient =
     isPatientRecordMode
     && Boolean(focusedPatientId)
-    && hasHydratedLocalWorkspace
     && !selectedPatient;
   const selectedPatientIndex = selectedPatient
     ? patients.findIndex((patient) => patient.id === selectedPatient.id)
@@ -1317,37 +834,6 @@ export function ClinicFlowApp({
         },
       ]
     : [];
-
-  useEffect(() => {
-    setActiveSection((current) =>
-      navigationSections.some((section) => section.key === current)
-        ? current
-        : defaultSection,
-    );
-  }, [defaultSection, navigationSections]);
-
-  useEffect(() => {
-    if (!focusedPatientId) {
-      return;
-    }
-
-    const focusedPatient = patients.find((patient) => patient.id === focusedPatientId);
-
-    if (!focusedPatient) {
-      return;
-    }
-
-    if (selectedPatientId === focusedPatientId) {
-      return;
-    }
-
-    setSelectedPatientId(focusedPatientId);
-    setAppointmentForm((current) => ({
-      ...current,
-      patient_id: focusedPatientId,
-      therapist_id: focusedPatient.therapist_id ?? current.therapist_id,
-    }));
-  }, [focusedPatientId, patients, selectedPatientId]);
 
   const today = new Date();
   const todayKey = today.toDateString();
@@ -1430,12 +916,6 @@ export function ClinicFlowApp({
   const clinicalNotesEnabled = canEditClinicalNotes(currentRole);
   const billingManagementEnabled = canManageBilling(currentRole);
 
-  useEffect(() => {
-    if (!visibleSections.some((section) => section.key === activeSection)) {
-      setActiveSection(visibleSections[0]?.key ?? "dashboard");
-    }
-  }, [activeSection, visibleSections]);
-
   function prependReminderNotices(nextNotices: ReminderNotice[]) {
     setReminderNotices((current) => {
       const cleaned = mergeReminderNotices(current, nextNotices).filter(
@@ -1459,16 +939,12 @@ export function ClinicFlowApp({
   }
 
   useEffect(() => {
-    if (!hasHydratedLocalWorkspace || usingLocalWorkspaceSnapshot) {
+    if (typeof window === "undefined") {
       return;
     }
-    setTherapists(bootstrappedClinic?.therapists ?? initialTherapists);
-  }, [
-    bootstrappedClinic,
-    hasHydratedLocalWorkspace,
-    initialTherapists,
-    usingLocalWorkspaceSnapshot,
-  ]);
+
+    window.localStorage.removeItem(localWorkspaceStateStorageKey);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1486,231 +962,20 @@ export function ClinicFlowApp({
       }
     });
 
-    const storedNotices = window.localStorage.getItem(reminderItemsStorageKey);
-    if (storedNotices) {
-      try {
-        const parsed = JSON.parse(storedNotices) as ReminderNotice[];
-        const cleaned = mergeReminderNotices(
-          [],
-          parsed
-            .map(normalizeReminderNotice)
-            .filter(isPatientReminderNotice),
-        );
-        setReminderNotices(cleaned);
-        persistReminderNoticesToStorage(cleaned);
-      } catch {
-        window.localStorage.removeItem(reminderItemsStorageKey);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const rawSnapshot = window.localStorage.getItem(localWorkspaceStateStorageKey);
-
-    if (!rawSnapshot) {
-      setHasHydratedLocalWorkspace(true);
-      return;
-    }
-
-    if (hasInitialServerData) {
-      window.localStorage.removeItem(localWorkspaceStateStorageKey);
-      setHasHydratedLocalWorkspace(true);
-      return;
-    }
-
-    try {
-      const snapshot = JSON.parse(rawSnapshot) as {
-        therapists?: Therapist[];
-        patients?: Patient[];
-        appointments?: Appointment[];
-        paymentEntries?: PaymentEntry[];
-        journalEntries?: JournalEntry[];
-        selectedPatientId?: string;
-        statusDrafts?: Record<string, string>;
-      };
-      const hasMeaningfulSnapshot =
-        Boolean(snapshot.patients?.length)
-        || Boolean(snapshot.therapists?.length)
-        || Boolean(snapshot.appointments?.length)
-        || Boolean(snapshot.paymentEntries?.length)
-        || Boolean(snapshot.journalEntries?.length);
-
-      if (!hasMeaningfulSnapshot) {
-        window.localStorage.removeItem(localWorkspaceStateStorageKey);
-        setHasHydratedLocalWorkspace(true);
-        return;
-      }
-
-      if (snapshot.therapists) {
-        setTherapists(snapshot.therapists);
-      }
-      if (snapshot.patients) {
-        setPatients(snapshot.patients);
-      }
-      if (snapshot.appointments) {
-        setAppointments(snapshot.appointments);
-      }
-      if (snapshot.paymentEntries) {
-        setPaymentEntries(snapshot.paymentEntries);
-      }
-      if (snapshot.journalEntries) {
-        setJournalEntries(snapshot.journalEntries);
-      }
-      if (!focusedPatientId && snapshot.selectedPatientId) {
-        setSelectedPatientId(snapshot.selectedPatientId);
-      }
-      if (snapshot.statusDrafts) {
-        setStatusDrafts(snapshot.statusDrafts);
-      }
-
-      setUsingLocalWorkspaceSnapshot(true);
-    } catch {
-      window.localStorage.removeItem(localWorkspaceStateStorageKey);
-    } finally {
-      setHasHydratedLocalWorkspace(true);
-    }
-  }, [focusedPatientId, hasInitialServerData]);
-
-  useEffect(() => {
-    if (!hasHydratedLocalWorkspace || usingLocalWorkspaceSnapshot) {
-      return;
-    }
-    setPatients(bootstrappedClinic?.patients ?? initialPatients);
-    setStatusDrafts(
-      Object.fromEntries(
-        (bootstrappedClinic?.patients ?? initialPatients).map((patient) => [patient.id, patient.status]),
-      ),
-    );
-  }, [
-    bootstrappedClinic,
-    hasHydratedLocalWorkspace,
-    initialPatients,
-    usingLocalWorkspaceSnapshot,
-  ]);
-
-  useEffect(() => {
-    if (!hasHydratedLocalWorkspace || usingLocalWorkspaceSnapshot) {
-      return;
-    }
-    setAppointments(bootstrappedClinic?.appointments ?? initialAppointments);
-    setPaymentEntries(bootstrappedClinic?.paymentEntries ?? initialPaymentEntries);
-  }, [
-    bootstrappedClinic,
-    hasHydratedLocalWorkspace,
-    initialAppointments,
-    initialPaymentEntries,
-    usingLocalWorkspaceSnapshot,
-  ]);
-
-  useEffect(() => {
-    if (
-      !hasHydratedLocalWorkspace
-      || typeof window === "undefined"
-      || (hasInitialServerData && !usingLocalWorkspaceSnapshot)
-    ) {
-      return;
-    }
-
-    persistLocalWorkspaceSnapshot({
-      therapists,
-      patients,
-      appointments,
-      paymentEntries,
-      journalEntries,
-      selectedPatientId,
-      statusDrafts,
-    });
-  }, [
-    appointments,
-    hasInitialServerData,
-    hasHydratedLocalWorkspace,
-    journalEntries,
-    patients,
-    paymentEntries,
-    selectedPatientId,
-    statusDrafts,
-    usingLocalWorkspaceSnapshot,
-    therapists,
-  ]);
-
-  useEffect(() => {
-    if (!hasHydratedLocalWorkspace || patients.length > 0) {
-      return;
-    }
-
-    const seed = buildLocalClinicSeed();
-
-    setTherapists((current) => (current.length > 0 ? current : seed.therapists));
-    setPatients((current) => (current.length > 0 ? current : seed.patients));
-    setAppointments((current) => (current.length > 0 ? current : seed.appointments));
-    setPaymentEntries((current) => (current.length > 0 ? current : seed.paymentEntries));
-    setStatusDrafts((current) =>
-      Object.keys(current).length > 0
-        ? current
-        : Object.fromEntries(seed.patients.map((patient) => [patient.id, patient.status])),
-    );
-    setSelectedPatientId((current) => {
-      if (focusedPatientId && seed.patients.some((patient) => patient.id === focusedPatientId)) {
-        return focusedPatientId;
-      }
-
-      return current || seed.patients[0]?.id || "";
-    });
-    setJournalEntries((current) =>
-      current.length > 0
-        ? current
-        : seed.journalEntries.filter((entry) => entry.patient_id === seed.patients[0]?.id),
-    );
-  }, [focusedPatientId, hasHydratedLocalWorkspace, patients.length]);
-
-  const runDemoSeedIfNeeded = useEffectEvent(() => {
-    if (
-      hasHydratedLocalWorkspace
-      && patients.length === 0
-      && therapists.length === 0
-      && !isSeedingDemo
-    ) {
-      void handleLoadDemoData();
-    }
-  });
-
-  useEffect(() => {
-    runDemoSeedIfNeeded();
-  }, [
-    hasHydratedLocalWorkspace,
-    isSeedingDemo,
-    patients.length,
-    therapists.length,
-  ]);
+    persistReminderNoticesToStorage(reminderNotices);
+  }, [reminderNotices]);
 
   useEffect(() => {
     if (!selectedPatient) {
       return;
     }
 
-    setJournalForm(buildJournalForm(selectedPatient));
-
-    if (usingLocalWorkspaceSnapshot) {
-      return;
-    }
-
-    if (bootstrappedClinic && initialPatients.length === 0) {
-      setJournalEntries(
-        bootstrappedClinic.journalEntries.filter(
-          (entry) => entry.patient_id === selectedPatient.id,
-        ),
-      );
-      return;
-    }
+    const patientId = selectedPatient.id;
 
     const loadEntries = async () => {
       try {
         const response = await fetch(
-          `/api/clinicflow/patient-record?patientId=${encodeURIComponent(selectedPatient.id)}`,
+          `/api/clinicflow/patient-record?patientId=${encodeURIComponent(patientId)}`,
         );
 
         if (!response.ok) {
@@ -1742,7 +1007,7 @@ export function ClinicFlowApp({
         if (result.paymentEntries) {
           setPaymentEntries((current) => {
             const otherPatientsEntries = current.filter(
-              (entry) => entry.patient_id !== selectedPatient.id,
+              (entry) => entry.patient_id !== patientId,
             );
 
             return [...result.paymentEntries!, ...otherPatientsEntries].sort(
@@ -1758,14 +1023,7 @@ export function ClinicFlowApp({
     };
 
     void loadEntries();
-  }, [
-    bootstrappedClinic,
-    initialPaymentEntries.length,
-    initialPatients.length,
-    selectedPatient,
-    selectedPatientId,
-    usingLocalWorkspaceSnapshot,
-  ]);
+  }, [selectedPatient]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1889,14 +1147,13 @@ export function ClinicFlowApp({
       payload: patientPayload,
     });
     const data = mutationResult?.patient;
+    if (error || !data) {
+      setIsAddingPatient(false);
+      setPatientSaveStatus("לא ניתן לשמור את המטופל כרגע. הפרטים לא נשמרו בשרת.");
+      return;
+    }
 
-    const savedPatient: Patient = error || !data
-      ? {
-          id: editingPatientId || crypto.randomUUID(),
-          ...patientPayload,
-          payment_balance: patients.find((patient) => patient.id === editingPatientId)?.payment_balance ?? 0,
-        }
-      : (data as Patient);
+    const savedPatient = data as Patient;
 
     const nextPatients = editingPatientId
       ? patients.map((patient) => (patient.id === editingPatientId ? {
@@ -1907,15 +1164,10 @@ export function ClinicFlowApp({
       : [savedPatient, ...patients];
 
     setPatients(nextPatients);
-    persistLocalWorkspaceSnapshot({
-      therapists,
-      patients: nextPatients,
-      appointments,
-      paymentEntries,
-      journalEntries,
-      selectedPatientId: savedPatient.id,
-      statusDrafts,
-    });
+    setStatusDrafts((current) => ({
+      ...current,
+      [savedPatient.id]: savedPatient.status,
+    }));
     setSelectedPatientId(savedPatient.id);
     setAppointmentForm((current) => ({
       ...current,
@@ -1928,11 +1180,7 @@ export function ClinicFlowApp({
     setActiveSection("patients");
     setIsAddingPatient(false);
     setPatientSaveStatus(
-      error || !data
-        ? editingPatientId
-          ? "פרטי המטופל עודכנו מקומית, אך לא נשמרו ב-Supabase."
-          : "המטופל נשמר מקומית עם כל הפרטים, אך לא נכתב ל-Supabase."
-        : "",
+      editingPatientId ? "פרטי המטופל נשמרו בהצלחה" : "המטופל נשמר בהצלחה",
     );
   }
 
@@ -1954,13 +1202,13 @@ export function ClinicFlowApp({
       payload,
     });
     const data = mutationResult?.therapist;
+    if (error || !data) {
+      setIsAddingTherapist(false);
+      setTherapistSaveStatus("לא ניתן לשמור את המטפל כרגע. הפרטים לא נשמרו בשרת.");
+      return;
+    }
 
-    const nextTherapist = error || !data
-      ? {
-          id: editingTherapistId || crypto.randomUUID(),
-          ...payload,
-        }
-      : (data as Therapist);
+    const nextTherapist = data as Therapist;
     const nextTherapists = editingTherapistId
       ? therapists.map((therapist) =>
           therapist.id === nextTherapist.id ? nextTherapist : therapist,
@@ -1968,25 +1216,12 @@ export function ClinicFlowApp({
       : [...therapists, nextTherapist];
 
     setTherapists(nextTherapists);
-    persistLocalWorkspaceSnapshot({
-      therapists: nextTherapists,
-      patients,
-      appointments,
-      paymentEntries,
-      journalEntries,
-      selectedPatientId,
-      statusDrafts,
-    });
     setAddTherapistForm(defaultAddTherapistForm);
     setShowTherapistDialog(false);
     setIsAddingTherapist(false);
     setEditingTherapistId("");
     setTherapistSaveStatus(
-      error || !data
-        ? editingTherapistId
-          ? "פרטי המטפל עודכנו מקומית, אך לא נשמרו ב-Supabase."
-          : "המטפל נשמר מקומית, אך לא נכתב ל-Supabase."
-        : "",
+      editingTherapistId ? "פרטי המטפל נשמרו בהצלחה" : "המטפל נשמר בהצלחה",
     );
   }
 
@@ -2036,6 +1271,10 @@ export function ClinicFlowApp({
       action: "deleteTherapist",
       therapistId,
     });
+    if (error) {
+      setDeleteStatus("לא ניתן למחוק את המטפל כרגע. המחיקה לא נשמרה בשרת.");
+      return;
+    }
 
     const nextTherapists = therapists.filter((therapist) => therapist.id !== therapistId);
     const nextPatients = patients.map((patient) =>
@@ -2046,20 +1285,7 @@ export function ClinicFlowApp({
 
     setTherapists(nextTherapists);
     setPatients(nextPatients);
-    persistLocalWorkspaceSnapshot({
-      therapists: nextTherapists,
-      patients: nextPatients,
-      appointments,
-      paymentEntries,
-      journalEntries,
-      selectedPatientId,
-      statusDrafts,
-    });
-    setDeleteStatus(
-      error
-        ? "המטפל נמחק מקומית. Supabase לא קיבל כרגע את המחיקה."
-        : "המטפל נמחק בהצלחה",
-    );
+    setDeleteStatus("המטפל נמחק בהצלחה");
   }
 
   async function handleJournalSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -2101,28 +1327,14 @@ export function ClinicFlowApp({
       journalPayload,
     });
     const updatedPatient = mutationResult?.patient;
-    const patientSavedToSupabase = !mutationError && Boolean(updatedPatient);
-
-    let insertedEntry: JournalEntry | null = mutationResult?.journalEntry ?? null;
-    const journalSavedToSupabase = !mutationError && (!journalPayload || Boolean(insertedEntry));
-
-    const nextPatient = mutationError || !updatedPatient
-      ? {
-          ...selectedPatient,
-          ...patientPayload,
-        }
-      : (updatedPatient as Patient);
-    if (noteContent && !insertedEntry) {
-      insertedEntry = {
-        id: crypto.randomUUID(),
-        patient_id: selectedPatient.id,
-        therapist_id: selectedPatient.therapist_id,
-        entry_date: new Date().toISOString().slice(0, 10),
-        content: noteContent,
-        home_program: journalForm.homeProgram.trim() || null,
-        created_at: new Date().toISOString(),
-      };
+    if (mutationError || !updatedPatient) {
+      setIsSavingJournal(false);
+      setJournalSaveStatus("לא ניתן לשמור את היומן כרגע. התיעוד לא נשמר בשרת.");
+      return;
     }
+
+    const insertedEntry = mutationResult?.journalEntry ?? null;
+    const nextPatient = updatedPatient as Patient;
 
     const nextPatients = patients.map((patient) =>
       patient.id === nextPatient.id ? nextPatient : patient,
@@ -2132,30 +1344,17 @@ export function ClinicFlowApp({
       : journalEntries;
 
     setPatients(nextPatients);
+    setStatusDrafts((current) => ({
+      ...current,
+      [nextPatient.id]: nextPatient.status,
+    }));
     setJournalForm(buildJournalForm(nextPatient));
     if (insertedEntry) {
       setJournalEntries(nextJournalEntries);
     }
-    persistLocalWorkspaceSnapshot({
-      therapists,
-      patients: nextPatients,
-      appointments,
-      paymentEntries,
-      journalEntries: nextJournalEntries,
-      selectedPatientId,
-      statusDrafts,
-    });
     setIsSavingJournal(false);
     setJournalSaveStatus(
-      !patientSavedToSupabase
-        ? insertedEntry && noteContent
-          ? "היומן נשמר מקומית. שמירת השרת לא הושלמה כרגע."
-          : "פרטי היומן נשמרו מקומית, אבל שמירת השרת לא הושלמה כרגע."
-        : insertedEntry && noteContent
-          ? journalSavedToSupabase
-            ? "היומן נשמר בהצלחה"
-            : "רשומת היומן נשמרה מקומית, למרות שהשרת לא שמר את הרשומה."
-          : "תיק המטופל עודכן בהצלחה",
+      insertedEntry && noteContent ? "היומן נשמר בהצלחה" : "תיק המטופל עודכן בהצלחה",
     );
   }
 
@@ -2204,28 +1403,19 @@ export function ClinicFlowApp({
       payload,
     });
     const data = mutationResult?.appointment;
-    const appointmentSavedToSupabase = !error && Boolean(data);
-    const nextAppointment = appointmentSavedToSupabase
-      ? (data as Appointment)
-      : {
-          id: editingAppointmentId || crypto.randomUUID(),
-          ...payload,
-        };
+    if (error || !data) {
+      setIsSavingAppointment(false);
+      setAppointmentSaveStatus("לא ניתן לשמור את התור כרגע. השינוי לא נשמר בשרת.");
+      return;
+    }
+
+    const nextAppointment = data as Appointment;
     const nextAppointments = appointments
       .filter((appointment) => appointment.id !== nextAppointment.id)
       .concat(nextAppointment)
       .sort((a, b) => a.appointment_at.localeCompare(b.appointment_at));
 
     setAppointments(nextAppointments);
-    persistLocalWorkspaceSnapshot({
-      therapists,
-      patients,
-      appointments: nextAppointments,
-      paymentEntries,
-      journalEntries,
-      selectedPatientId,
-      statusDrafts,
-    });
 
     if (typeof window !== "undefined" && !editingAppointmentId) {
       const resolvedTherapistId = getResolvedTherapistId(
@@ -2279,13 +1469,7 @@ export function ClinicFlowApp({
     setShowAppointmentDialog(false);
     setEditingAppointmentId("");
     setAppointmentSaveStatus(
-      appointmentSavedToSupabase
-        ? editingAppointmentId
-          ? "התור עודכן בהצלחה"
-          : "הטיפול נקבע בהצלחה"
-        : editingAppointmentId
-          ? "התור עודכן מקומית. Supabase לא קיבל כרגע את השינוי."
-          : "הטיפול נקבע מקומית. Supabase לא קיבל כרגע את התור.",
+      editingAppointmentId ? "התור עודכן בהצלחה" : "הטיפול נקבע בהצלחה",
     );
     setActiveSection(isPatientRecordMode ? "patients" : "appointments");
   }
@@ -2323,41 +1507,21 @@ export function ClinicFlowApp({
       status: nextStatus,
     });
     const data = mutationResult?.patient;
-
-    const currentPatient = patients.find((patient) => patient.id === patientId);
-
-    if (!currentPatient) {
+    if (error || !data) {
+      setDeleteStatus("לא ניתן לעדכן את סטטוס המטופל כרגע. השינוי לא נשמר בשרת.");
       return;
     }
 
-    const updatedPatient = error || !data
-      ? {
-          ...currentPatient,
-          status: nextStatus,
-        }
-      : (data as Patient);
+    const updatedPatient = data as Patient;
     const nextPatients = patients.map((patient) =>
       patient.id === updatedPatient.id ? updatedPatient : patient,
     );
 
     setPatients(nextPatients);
-    if (selectedPatientId === updatedPatient.id) {
+    if (effectiveSelectedPatientId === updatedPatient.id) {
       setJournalForm((current) => ({ ...current, status: updatedPatient.status }));
     }
-    persistLocalWorkspaceSnapshot({
-      therapists,
-      patients: nextPatients,
-      appointments,
-      paymentEntries,
-      journalEntries,
-      selectedPatientId,
-      statusDrafts,
-    });
-    setDeleteStatus(
-      error || !data
-        ? "סטטוס המטופל עודכן מקומית. Supabase לא קיבל כרגע את השינוי."
-        : "סטטוס המטופל עודכן בהצלחה",
-    );
+    setDeleteStatus("סטטוס המטופל עודכן בהצלחה");
   }
 
   async function handleDeleteAppointment(appointmentId: string) {
@@ -2371,26 +1535,17 @@ export function ClinicFlowApp({
       action: "deleteAppointment",
       appointmentId,
     });
+    if (error) {
+      setDeleteStatus("לא ניתן למחוק את התור כרגע. המחיקה לא נשמרה בשרת.");
+      return;
+    }
 
     const nextAppointments = appointments.filter(
       (appointment) => appointment.id !== appointmentId,
     );
 
     setAppointments(nextAppointments);
-    persistLocalWorkspaceSnapshot({
-      therapists,
-      patients,
-      appointments: nextAppointments,
-      paymentEntries,
-      journalEntries,
-      selectedPatientId,
-      statusDrafts,
-    });
-    setDeleteStatus(
-      error
-        ? "התור נמחק מקומית. Supabase לא קיבל כרגע את המחיקה."
-        : "התור נמחק בהצלחה",
-    );
+    setDeleteStatus("התור נמחק בהצלחה");
   }
 
   async function handleDeletePatient(patientId: string) {
@@ -2406,6 +1561,10 @@ export function ClinicFlowApp({
       action: "deletePatient",
       patientId,
     });
+    if (error) {
+      setDeleteStatus("לא ניתן למחוק את המטופל כרגע. המחיקה לא נשמרה בשרת.");
+      return;
+    }
 
     const nextPatients = patients.filter((patient) => patient.id !== patientId);
     const nextAppointments = appointments.filter(
@@ -2427,31 +1586,19 @@ export function ClinicFlowApp({
     setJournalEntries(nextJournalEntries);
     setStatusDrafts(nextStatusDrafts);
     setSelectedPatientId(nextPatients[0]?.id ?? "");
-    persistLocalWorkspaceSnapshot({
-      therapists,
-      patients: nextPatients,
-      appointments: nextAppointments,
-      paymentEntries: nextPaymentEntries,
-      journalEntries: nextJournalEntries,
-      selectedPatientId: nextPatients[0]?.id ?? "",
-      statusDrafts: nextStatusDrafts,
-    });
 
     if (isPatientRecordMode && typeof window !== "undefined") {
       window.location.assign("/patients");
       return;
     }
 
-    setDeleteStatus(
-      error
-        ? "המטופל נמחק מקומית. Supabase לא קיבל כרגע את המחיקה."
-        : "המטופל נמחק בהצלחה",
-    );
+    setDeleteStatus("המטופל נמחק בהצלחה");
   }
 
   function handleSelectPatient(patientId: string) {
     const patient = patients.find((item) => item.id === patientId);
     setSelectedPatientId(patientId);
+    setJournalForm(buildJournalForm(patient));
     setAppointmentForm((current) => ({
       ...current,
       patient_id: patientId,
@@ -2464,6 +1611,7 @@ export function ClinicFlowApp({
   function handleFocusPatient(patientId: string) {
     const patient = patients.find((item) => item.id === patientId);
     setSelectedPatientId(patientId);
+    setJournalForm(buildJournalForm(patient));
     setAppointmentForm((current) => ({
       ...current,
       patient_id: patientId,
@@ -2571,159 +1719,6 @@ export function ClinicFlowApp({
     setActiveSection("appointments");
   }
 
-  async function handleLoadDemoData() {
-    if (isSeedingDemo) {
-      return;
-    }
-
-    setIsSeedingDemo(true);
-
-    try {
-      const existingNames = new Set(patients.map((patient) => patient.full_name));
-      const patientsToSeed = demoPatients.filter(
-        (patient) => !existingNames.has(patient.full_name),
-      );
-
-      if (patientsToSeed.length === 0) {
-        return;
-      }
-
-      const demoTherapistRows: Therapist[] = demoTherapists.map((therapist) => ({
-        id: crypto.randomUUID(),
-        full_name: therapist.full_name,
-        profession: therapist.profession,
-        specialty: therapist.specialty,
-        phone: therapist.phone,
-      }));
-
-      const therapistMap = new Map(
-        demoTherapistRows.map((therapist) => [therapist.full_name, therapist]),
-      );
-
-      const demoPatientRows: Patient[] = patientsToSeed.map((patient) => ({
-        id: crypto.randomUUID(),
-        full_name: patient.full_name,
-        discipline: patient.discipline,
-        status: patient.status,
-        diagnosis: patient.diagnosis,
-        treatment_goal: patient.treatment_goal,
-        therapist_id: therapistMap.get(patient.therapistName)?.id ?? null,
-        phone: patient.phone,
-        email: patient.email,
-        city: patient.city,
-        address: patient.address,
-        birth_date: patient.birth_date,
-        gender: patient.gender,
-        occupation: patient.occupation,
-        referring_source: patient.referring_source,
-        intake_summary: patient.intake_summary,
-        medical_background: patient.medical_background,
-        medications: patient.medications,
-        allergies: patient.allergies,
-        emergency_contact_name: patient.emergency_contact_name,
-        emergency_contact_phone: patient.emergency_contact_phone,
-        insurance_provider: patient.insurance_provider,
-        coverage_track: patient.coverage_track,
-        communication_preference: patient.communication_preference,
-        preferred_days: patient.preferred_days,
-        attendance_risk: patient.attendance_risk,
-        functional_status: patient.functional_status,
-        payment_balance: patient.payment_balance,
-      }));
-
-      const patientMap = new Map(
-        demoPatientRows.map((patient) => [patient.full_name, patient]),
-      );
-
-      const demoAppointmentRows: Appointment[] = patientsToSeed
-        .flatMap((patient) =>
-          patient.appointments.map((appointment) => {
-            const date = new Date();
-            date.setDate(date.getDate() + appointment.daysOffset);
-            date.setHours(appointment.hour, appointment.minute, 0, 0);
-
-            return {
-              id: crypto.randomUUID(),
-              patient_id: patientMap.get(patient.full_name)?.id ?? "",
-              therapist_id: therapistMap.get(patient.therapistName)?.id ?? null,
-              appointment_at: date.toISOString(),
-              room: appointment.room,
-              status: appointment.status ?? "scheduled",
-              summary: appointment.summary,
-            };
-          }),
-        )
-        .sort(
-          (a, b) =>
-            new Date(a.appointment_at).getTime() - new Date(b.appointment_at).getTime(),
-        );
-
-      const demoJournalRows: JournalEntry[] = patientsToSeed.flatMap((patient) =>
-        patient.journalEntries.map((entry) => {
-          const date = new Date();
-          date.setDate(date.getDate() + entry.daysOffset);
-          date.setHours(9, 0, 0, 0);
-
-          return {
-            id: crypto.randomUUID(),
-            patient_id: patientMap.get(patient.full_name)?.id ?? "",
-            therapist_id: therapistMap.get(patient.therapistName)?.id ?? null,
-            entry_date: date.toISOString().slice(0, 10),
-            content: entry.content,
-            home_program: entry.homeProgram ?? null,
-            created_at: date.toISOString(),
-          };
-        }),
-      );
-
-      const demoPaymentRows: PaymentEntry[] = patientsToSeed.flatMap((patient) =>
-        patient.payments.map((payment) => {
-          const date = new Date();
-          date.setDate(date.getDate() + payment.daysOffset);
-          date.setHours(12, 0, 0, 0);
-
-          return {
-            id: crypto.randomUUID(),
-            patient_id: patientMap.get(patient.full_name)?.id ?? "",
-            created_at: date.toISOString(),
-            payment_date: date.toISOString(),
-            amount: payment.amount,
-            method: payment.method,
-            status: payment.status ?? "completed",
-            category: payment.category,
-            note: payment.note,
-          };
-        }),
-      );
-
-      setTherapists((current) => [...demoTherapistRows, ...current]);
-      setPatients((current) => [...demoPatientRows, ...current]);
-      setAppointments((current) =>
-        [...current, ...demoAppointmentRows].sort(
-          (a, b) =>
-            new Date(a.appointment_at).getTime() - new Date(b.appointment_at).getTime(),
-        ),
-      );
-      setPaymentEntries((current) =>
-        [...demoPaymentRows, ...current].sort(
-          (a, b) =>
-            new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime(),
-        ),
-      );
-      setJournalEntries(demoJournalRows.filter((entry) => entry.patient_id === demoPatientRows[0]?.id));
-      setStatusDrafts((current) => ({
-        ...current,
-        ...Object.fromEntries(demoPatientRows.map((patient) => [patient.id, patient.status])),
-      }));
-      setSelectedPatientId(demoPatientRows[0]?.id ?? selectedPatientId);
-      setActiveSection("patients");
-    } catch (error) {
-      console.error(error instanceof Error ? error.message : "טעינת נתוני הקליניקה נכשלה");
-    } finally {
-      setIsSeedingDemo(false);
-    }
-  }
-
   function handleJournalTemplateChange(templateKey: string) {
     const nextTemplate = getJournalTemplate(templateKey, selectedPatient?.discipline);
     setJournalForm((current) => ({
@@ -2740,7 +1735,6 @@ export function ClinicFlowApp({
       return;
     }
 
-    const now = new Date().toISOString();
     const { data: mutationResult, error } = await runClinicMutation<{
       paymentEntry: PaymentEntry;
       patient: Patient;
@@ -2752,48 +1746,23 @@ export function ClinicFlowApp({
       category,
       note,
     });
-
-    const nextEntry: PaymentEntry = {
-      id: crypto.randomUUID(),
-      patient_id: patientId,
-      created_at: now,
-      payment_date: now,
-      amount: normalizedAmount,
-      method,
-      status: "completed",
-      category,
-      note: note.trim() || null,
-    };
-    const savedPaymentEntry = mutationResult?.paymentEntry ?? nextEntry;
+    const savedPaymentEntry = mutationResult?.paymentEntry;
     const savedPatient = mutationResult?.patient;
+    if (error || !savedPaymentEntry || !savedPatient) {
+      setDeleteStatus("לא ניתן לשמור את התשלום כרגע. התשלום לא נשמר בשרת.");
+      return;
+    }
+
     const nextPaymentEntries = [savedPaymentEntry, ...paymentEntries.filter((entry) => entry.id !== savedPaymentEntry.id)];
     const nextPatients = patients.map((patient) =>
       patient.id === patientId
         ? savedPatient
-          ? savedPatient
-          : {
-              ...patient,
-              payment_balance: (patient.payment_balance ?? 0) - normalizedAmount,
-            }
         : patient,
     );
 
     setPaymentEntries(nextPaymentEntries);
     setPatients(nextPatients);
-    persistLocalWorkspaceSnapshot({
-      therapists,
-      patients: nextPatients,
-      appointments,
-      paymentEntries: nextPaymentEntries,
-      journalEntries,
-      selectedPatientId,
-      statusDrafts,
-    });
-    setDeleteStatus(
-      error
-        ? "התשלום נשמר מקומית. שמירת השרת לא הושלמה כרגע."
-        : "התשלום נשמר בהצלחה",
-    );
+    setDeleteStatus("התשלום נשמר בהצלחה");
   }
 
   async function handleUpdatePayment({
@@ -2828,48 +1797,28 @@ export function ClinicFlowApp({
       category,
       note,
     });
-
     const nextPaymentEntry = mutationResult?.paymentEntry;
+    const updatedPatient = mutationResult?.patient;
+    if (error || !nextPaymentEntry || !updatedPatient) {
+      setDeleteStatus("לא ניתן לעדכן את התשלום כרגע. השינוי לא נשמר בשרת.");
+      return;
+    }
+
     const nextPaymentEntries = paymentEntries.map((entry) =>
       entry.id === paymentId
-        ? nextPaymentEntry ?? {
-            ...entry,
-            amount: normalizedAmount,
-            method,
-            category,
-            note: note.trim() || null,
-          }
+        ? nextPaymentEntry
         : entry,
     );
 
-    const delta = normalizedAmount - existingPayment.amount;
     const nextPatients = patients.map((patient) =>
       patient.id === patientId
-        ? mutationResult?.patient ?? {
-            ...patient,
-            payment_balance: delta === 0
-              ? patient.payment_balance ?? 0
-              : (patient.payment_balance ?? 0) - delta,
-          }
+        ? updatedPatient
         : patient,
     );
 
     setPaymentEntries(nextPaymentEntries);
     setPatients(nextPatients);
-    persistLocalWorkspaceSnapshot({
-      therapists,
-      patients: nextPatients,
-      appointments,
-      paymentEntries: nextPaymentEntries,
-      journalEntries,
-      selectedPatientId,
-      statusDrafts,
-    });
-    setDeleteStatus(
-      error
-        ? "עדכון התשלום נשמר מקומית. שמירת השרת לא הושלמה כרגע."
-        : "התשלום עודכן בהצלחה",
-    );
+    setDeleteStatus("התשלום עודכן בהצלחה");
   }
 
   async function handleDeletePayment({ paymentId, patientId }: DeletePaymentInput) {
@@ -2890,33 +1839,22 @@ export function ClinicFlowApp({
       paymentId,
       patientId,
     });
+    const updatedPatient = mutationResult?.patient;
+    if (error || !updatedPatient) {
+      setDeleteStatus("לא ניתן למחוק את התשלום כרגע. המחיקה לא נשמרה בשרת.");
+      return;
+    }
 
     const nextPaymentEntries = paymentEntries.filter((entry) => entry.id !== paymentId);
     const nextPatients = patients.map((patient) =>
       patient.id === patientId
-        ? mutationResult?.patient ?? {
-            ...patient,
-            payment_balance: (patient.payment_balance ?? 0) + existingPayment.amount,
-          }
+        ? updatedPatient
         : patient,
     );
 
     setPaymentEntries(nextPaymentEntries);
     setPatients(nextPatients);
-    persistLocalWorkspaceSnapshot({
-      therapists,
-      patients: nextPatients,
-      appointments,
-      paymentEntries: nextPaymentEntries,
-      journalEntries,
-      selectedPatientId,
-      statusDrafts,
-    });
-    setDeleteStatus(
-      error
-        ? "מחיקת התשלום נשמרה מקומית. שמירת השרת לא הושלמה כרגע."
-        : "התשלום נמחק בהצלחה",
-    );
+    setDeleteStatus("התשלום נמחק בהצלחה");
   }
 
   function handleJournalTemplateAnswerChange(fieldKey: string, value: string) {
@@ -2968,7 +1906,7 @@ export function ClinicFlowApp({
                 {navigationSections.map(({ key, label }) => (
                   <button
                     key={key}
-                    className={`nav-link ${activeSection === key ? "active" : ""}`}
+                    className={`nav-link ${resolvedActiveSection === key ? "active" : ""}`}
                     data-section={key}
                     onClick={() => setActiveSection(key)}
                     type="button"
@@ -3051,7 +1989,7 @@ export function ClinicFlowApp({
             </section>
           ) : null}
 
-          <section className={`panel ${activeSection === "dashboard" ? "active" : ""}`}>
+          <section className={`panel ${resolvedActiveSection === "dashboard" ? "active" : ""}`}>
             <div className="stats-grid">
               {stats.map((item) => (
                 <article key={item.label} className="stat-card">
@@ -3152,7 +2090,7 @@ export function ClinicFlowApp({
             </div>
           </section>
 
-          <section className={`panel ${activeSection === "patients" ? "active" : ""}`}>
+          <section className={`panel ${resolvedActiveSection === "patients" ? "active" : ""}`}>
             <div className="section-head">
               <div>
                 <p className="section-tag">
@@ -3224,7 +2162,7 @@ export function ClinicFlowApp({
                     <div>
                       <strong>טוען את תיק המטופל...</strong>
                       <div className="item-meta">
-                        בודק אם התיק קיים בשרת או נשמר מקומית בדפדפן הזה.
+                        טוען את התיק ישירות מהשרת.
                       </div>
                     </div>
                     <div className="patient-route-state-actions">
@@ -3238,7 +2176,7 @@ export function ClinicFlowApp({
                     <div>
                       <strong>לא מצאנו כרגע את המטופל הזה</strong>
                       <div className="item-meta">
-                        ייתכן שזה מטופל שנשמר רק בדפדפן אחר, נמחק, או עדיין לא נכתב לשרת.
+                        ייתכן שהמטופל נמחק, שהקישור ישן, או שהרשומה עדיין לא זמינה בשרת.
                       </div>
                     </div>
                     <div className="patient-route-state-actions">
@@ -3562,7 +2500,7 @@ export function ClinicFlowApp({
             {deleteStatus ? <div className="item-meta">{deleteStatus}</div> : null}
           </section>
 
-          <section className={`panel ${activeSection === "appointments" ? "active" : ""}`}>
+          <section className={`panel ${resolvedActiveSection === "appointments" ? "active" : ""}`}>
             <div className="section-head">
               <div>
                 <p className="section-tag">יומן</p>
@@ -3803,7 +2741,7 @@ export function ClinicFlowApp({
             </div>
           </section>
 
-          <section className={`panel ${activeSection === "team" ? "active" : ""}`}>
+          <section className={`panel ${resolvedActiveSection === "team" ? "active" : ""}`}>
             <div className="section-head">
               <div>
                 <p className="section-tag">צוות מקצועי</p>
@@ -3855,7 +2793,7 @@ export function ClinicFlowApp({
             </div>
           </section>
 
-          <section className={`panel ${activeSection === "reports" ? "active" : ""}`}>
+          <section className={`panel ${resolvedActiveSection === "reports" ? "active" : ""}`}>
             <div className="section-head">
               <div>
                 <p className="section-tag">מדדים</p>
