@@ -797,6 +797,122 @@ function formatJournalDate(value: string) {
   });
 }
 
+function buildLocalClinicSeed() {
+  const therapistRows: Therapist[] = demoTherapists.map((therapist) => ({
+    id: crypto.randomUUID(),
+    full_name: therapist.full_name,
+    profession: therapist.profession,
+    specialty: therapist.specialty,
+    phone: therapist.phone,
+  }));
+
+  const therapistMap = new Map(
+    therapistRows.map((therapist) => [therapist.full_name, therapist]),
+  );
+
+  const patientRows: Patient[] = demoPatients.map((patient) => ({
+    id: crypto.randomUUID(),
+    full_name: patient.full_name,
+    discipline: patient.discipline,
+    status: patient.status,
+    diagnosis: patient.diagnosis,
+    treatment_goal: patient.treatment_goal,
+    therapist_id: therapistMap.get(patient.therapistName)?.id ?? null,
+    phone: patient.phone,
+    email: patient.email,
+    city: patient.city,
+    address: patient.address,
+    birth_date: patient.birth_date,
+    gender: patient.gender,
+    occupation: patient.occupation,
+    referring_source: patient.referring_source,
+    intake_summary: patient.intake_summary,
+    medical_background: patient.medical_background,
+    medications: patient.medications,
+    allergies: patient.allergies,
+    emergency_contact_name: patient.emergency_contact_name,
+    emergency_contact_phone: patient.emergency_contact_phone,
+    insurance_provider: patient.insurance_provider,
+    coverage_track: patient.coverage_track,
+    communication_preference: patient.communication_preference,
+    preferred_days: patient.preferred_days,
+    attendance_risk: patient.attendance_risk,
+    functional_status: patient.functional_status,
+    payment_balance: patient.payment_balance,
+  }));
+
+  const patientMap = new Map(patientRows.map((patient) => [patient.full_name, patient]));
+
+  const appointmentRows: Appointment[] = demoPatients
+    .flatMap((patient) =>
+      patient.appointments.map((appointment) => {
+        const date = new Date();
+        date.setDate(date.getDate() + appointment.daysOffset);
+        date.setHours(appointment.hour, appointment.minute, 0, 0);
+
+        return {
+          id: crypto.randomUUID(),
+          patient_id: patientMap.get(patient.full_name)?.id ?? "",
+          therapist_id: therapistMap.get(patient.therapistName)?.id ?? null,
+          appointment_at: date.toISOString(),
+          room: appointment.room,
+          status: appointment.status ?? "scheduled",
+          summary: appointment.summary,
+        };
+      }),
+    )
+    .sort(
+      (a, b) =>
+        new Date(a.appointment_at).getTime() - new Date(b.appointment_at).getTime(),
+    );
+
+  const journalRows: JournalEntry[] = demoPatients.flatMap((patient) =>
+    patient.journalEntries.map((entry) => {
+      const date = new Date();
+      date.setDate(date.getDate() + entry.daysOffset);
+      date.setHours(9, 0, 0, 0);
+
+      return {
+        id: crypto.randomUUID(),
+        patient_id: patientMap.get(patient.full_name)?.id ?? "",
+        therapist_id: therapistMap.get(patient.therapistName)?.id ?? null,
+        entry_date: date.toISOString().slice(0, 10),
+        content: entry.content,
+        home_program: entry.homeProgram ?? null,
+        created_at: date.toISOString(),
+      };
+    }),
+  );
+
+  const paymentRows: PaymentEntry[] = demoPatients.flatMap((patient) =>
+    patient.payments.map((payment) => {
+      const date = new Date();
+      date.setDate(date.getDate() + payment.daysOffset);
+      date.setHours(12, 0, 0, 0);
+
+      return {
+        id: crypto.randomUUID(),
+        patient_id: patientMap.get(patient.full_name)?.id ?? "",
+        created_at: date.toISOString(),
+        payment_date: date.toISOString(),
+        amount: payment.amount,
+        method: payment.method,
+        status: payment.status ?? "completed",
+        category: payment.category,
+        note: payment.note,
+      };
+    }),
+  );
+
+  return {
+    therapists: therapistRows,
+    patients: patientRows,
+    appointments: appointmentRows,
+    journalEntries: journalRows,
+    paymentEntries: paymentRows,
+  };
+}
+
 function getAppointmentFormParts(value: string) {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jerusalem",
@@ -845,6 +961,17 @@ export function ClinicFlowApp({
   accessContext,
 }: ClinicFlowAppProps) {
   const supabase = useMemo(() => getSupabaseClient(), []);
+  const bootstrappedClinic = useMemo(() => {
+    if (
+      initialTherapists.length > 0
+      || initialPatients.length > 0
+      || initialAppointments.length > 0
+    ) {
+      return null;
+    }
+
+    return buildLocalClinicSeed();
+  }, [initialAppointments.length, initialPatients.length, initialTherapists.length]);
   const [currentRole, setCurrentRole] = useState<AppRole>(accessContext.role);
   const visibleSections = useMemo(
     () => getVisibleSections(currentRole),
@@ -853,15 +980,30 @@ export function ClinicFlowApp({
   const [activeSection, setActiveSection] = useState<AppSection>(
     visibleSections[0]?.key ?? "dashboard",
   );
-  const [therapists, setTherapists] = useState(initialTherapists);
-  const [patients, setPatients] = useState(initialPatients);
-  const [appointments, setAppointments] = useState(initialAppointments);
-  const [paymentEntries, setPaymentEntries] = useState<PaymentEntry[]>([]);
+  const [therapists, setTherapists] = useState(
+    () => bootstrappedClinic?.therapists ?? initialTherapists,
+  );
+  const [patients, setPatients] = useState(
+    () => bootstrappedClinic?.patients ?? initialPatients,
+  );
+  const [appointments, setAppointments] = useState(
+    () => bootstrappedClinic?.appointments ?? initialAppointments,
+  );
+  const [paymentEntries, setPaymentEntries] = useState<PaymentEntry[]>(
+    () => bootstrappedClinic?.paymentEntries ?? [],
+  );
   const [search, setSearch] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState(
-    initialPatients[0]?.id ?? "",
+    bootstrappedClinic?.patients[0]?.id ?? initialPatients[0]?.id ?? "",
   );
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(
+    () =>
+      bootstrappedClinic
+        ? bootstrappedClinic.journalEntries.filter(
+            (entry) => entry.patient_id === bootstrappedClinic.patients[0]?.id,
+          )
+        : [],
+  );
   const [showPatientDialog, setShowPatientDialog] = useState(false);
   const [showJournalDialog, setShowJournalDialog] = useState(false);
   const [showAppointmentDialog, setShowAppointmentDialog] = useState(false);
@@ -873,7 +1015,7 @@ export function ClinicFlowApp({
   const [addTherapistForm, setAddTherapistForm] =
     useState<AddTherapistForm>(defaultAddTherapistForm);
   const [journalForm, setJournalForm] = useState<JournalForm>(() =>
-    buildJournalForm(initialPatients[0]),
+    buildJournalForm(bootstrappedClinic?.patients[0] ?? initialPatients[0]),
   );
   const [patientSaveStatus, setPatientSaveStatus] = useState("");
   const [therapistSaveStatus, setTherapistSaveStatus] = useState("");
@@ -889,12 +1031,15 @@ export function ClinicFlowApp({
   const [hasHydratedLocalWorkspace, setHasHydratedLocalWorkspace] = useState(false);
   const [usingLocalWorkspaceSnapshot, setUsingLocalWorkspaceSnapshot] = useState(false);
   const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>(
-    Object.fromEntries(initialPatients.map((patient) => [patient.id, patient.status])),
+    Object.fromEntries(
+      (bootstrappedClinic?.patients ?? initialPatients).map((patient) => [patient.id, patient.status]),
+    ),
   );
   const [appointmentForm, setAppointmentForm] = useState<AppointmentForm>({
     ...defaultAppointmentForm,
-    patient_id: initialPatients[0]?.id ?? "",
-    therapist_id: initialPatients[0]?.therapist_id ?? "",
+    patient_id: bootstrappedClinic?.patients[0]?.id ?? initialPatients[0]?.id ?? "",
+    therapist_id:
+      bootstrappedClinic?.patients[0]?.therapist_id ?? initialPatients[0]?.therapist_id ?? "",
   });
 
   const therapistNameById = useMemo(
@@ -1087,8 +1232,11 @@ export function ClinicFlowApp({
   }
 
   useEffect(() => {
-    setTherapists(initialTherapists);
-  }, [initialTherapists]);
+    if (usingLocalWorkspaceSnapshot) {
+      return;
+    }
+    setTherapists(bootstrappedClinic?.therapists ?? initialTherapists);
+  }, [bootstrappedClinic, initialTherapists, usingLocalWorkspaceSnapshot]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1188,18 +1336,21 @@ export function ClinicFlowApp({
     if (usingLocalWorkspaceSnapshot) {
       return;
     }
-    setPatients(initialPatients);
+    setPatients(bootstrappedClinic?.patients ?? initialPatients);
     setStatusDrafts(
-      Object.fromEntries(initialPatients.map((patient) => [patient.id, patient.status])),
+      Object.fromEntries(
+        (bootstrappedClinic?.patients ?? initialPatients).map((patient) => [patient.id, patient.status]),
+      ),
     );
-  }, [initialPatients, usingLocalWorkspaceSnapshot]);
+  }, [bootstrappedClinic, initialPatients, usingLocalWorkspaceSnapshot]);
 
   useEffect(() => {
     if (usingLocalWorkspaceSnapshot) {
       return;
     }
-    setAppointments(initialAppointments);
-  }, [initialAppointments, usingLocalWorkspaceSnapshot]);
+    setAppointments(bootstrappedClinic?.appointments ?? initialAppointments);
+    setPaymentEntries(bootstrappedClinic?.paymentEntries ?? []);
+  }, [bootstrappedClinic, initialAppointments, usingLocalWorkspaceSnapshot]);
 
   useEffect(() => {
     if (!hasHydratedLocalWorkspace || typeof window === "undefined") {
@@ -1254,6 +1405,15 @@ export function ClinicFlowApp({
 
     setJournalForm(buildJournalForm(selectedPatient));
 
+    if (bootstrappedClinic && initialPatients.length === 0 && !usingLocalWorkspaceSnapshot) {
+      setJournalEntries(
+        bootstrappedClinic.journalEntries.filter(
+          (entry) => entry.patient_id === selectedPatient.id,
+        ),
+      );
+      return;
+    }
+
     const loadEntries = async () => {
       const { data, error } = await supabase
         .from("journal_entries")
@@ -1273,7 +1433,14 @@ export function ClinicFlowApp({
     };
 
     void loadEntries();
-  }, [selectedPatient, selectedPatientId, supabase]);
+  }, [
+    bootstrappedClinic,
+    initialPatients.length,
+    selectedPatient,
+    selectedPatientId,
+    supabase,
+    usingLocalWorkspaceSnapshot,
+  ]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
