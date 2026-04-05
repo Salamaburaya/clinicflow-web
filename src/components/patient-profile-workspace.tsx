@@ -149,6 +149,10 @@ function formatPaymentDate(value: string) {
   });
 }
 
+function getAppointmentKind(summary?: string | null) {
+  return summary?.includes("אבחון") ? "אבחון" : "טיפול";
+}
+
 export function PatientProfileWorkspace({
   patient,
   appointments,
@@ -471,7 +475,43 @@ export function PatientProfileWorkspace({
             <h4>מפגשים</h4>
             <span>{appointments.length} רשומות</span>
           </div>
-          <div className="workspace-table-wrap">
+          <div className="workspace-mobile-list workspace-mobile-only">
+            {appointments.map((appointment) => (
+              <article key={appointment.id} className="workspace-mobile-card">
+                <div className="workspace-mobile-card-head">
+                  <strong>
+                    {formatAppointmentDate(appointment.appointment_at)}{" "}
+                    {formatAppointmentTime(appointment.appointment_at)}
+                  </strong>
+                  <span className="chip warm">{appointment.status}</span>
+                </div>
+                <div className="workspace-mobile-grid">
+                  <div className="workspace-mobile-item">
+                    <span>סוג מפגש</span>
+                    <strong>{getAppointmentKind(appointment.summary)}</strong>
+                  </div>
+                  <div className="workspace-mobile-item">
+                    <span>מטפל</span>
+                    <strong>{therapistName}</strong>
+                  </div>
+                  <div className="workspace-mobile-item">
+                    <span>חדר</span>
+                    <strong>{appointment.room ?? "לא הוגדר"}</strong>
+                  </div>
+                </div>
+                <div className="workspace-mobile-item workspace-mobile-item-full">
+                  <span>סיכום</span>
+                  <strong className="workspace-long-text">
+                    {appointment.summary ?? "ללא סיכום"}
+                  </strong>
+                </div>
+              </article>
+            ))}
+            {appointments.length === 0 ? (
+              <div className="empty-card">עדיין אין מפגשים למטופל הזה.</div>
+            ) : null}
+          </div>
+          <div className="workspace-table-wrap workspace-desktop-only">
             <table className="workspace-table">
               <thead>
                 <tr>
@@ -490,7 +530,7 @@ export function PatientProfileWorkspace({
                       {formatAppointmentDate(appointment.appointment_at)}{" "}
                       {formatAppointmentTime(appointment.appointment_at)}
                     </td>
-                    <td>{appointment.summary?.includes("אבחון") ? "אבחון" : "טיפול"}</td>
+                    <td>{getAppointmentKind(appointment.summary)}</td>
                     <td>{therapistName}</td>
                     <td>{appointment.room ?? "לא הוגדר"}</td>
                     <td>{appointment.status}</td>
@@ -568,7 +608,80 @@ export function PatientProfileWorkspace({
                 <h4>היסטוריית תשלומים</h4>
                 <span>{patient.insurance_provider ?? "ללא ביטוח"}</span>
               </div>
-              <div className="workspace-table-wrap">
+              <div className="workspace-mobile-list workspace-mobile-only">
+                {payments.map((payment) => (
+                  <article key={payment.id} className="workspace-mobile-card">
+                    <div className="workspace-mobile-card-head">
+                      <strong>{formatPaymentDate(payment.payment_date)}</strong>
+                      <span className="chip warm">{payment.status}</span>
+                    </div>
+                    <div className="workspace-mobile-grid">
+                      <div className="workspace-mobile-item">
+                        <span>סוג חיוב</span>
+                        <strong>{payment.category}</strong>
+                      </div>
+                      <div className="workspace-mobile-item">
+                        <span>שיטה</span>
+                        <strong>{payment.method}</strong>
+                      </div>
+                      <div className="workspace-mobile-item">
+                        <span>סכום</span>
+                        <strong>{formatCurrency(payment.amount)}</strong>
+                      </div>
+                    </div>
+                    <div className="workspace-mobile-item workspace-mobile-item-full">
+                      <span>הערה</span>
+                      <strong className="workspace-long-text">
+                        {payment.note ?? "ללא הערה"}
+                      </strong>
+                    </div>
+                    {canManageBilling ? (
+                      <div className="workspace-mobile-actions">
+                        <button
+                          className="ghost-btn"
+                          type="button"
+                          onClick={() => {
+                            setEditingPaymentId(payment.id);
+                            setPaymentForm({
+                              amount: String(payment.amount),
+                              method: payment.method,
+                              category: payment.category,
+                              note: payment.note ?? "",
+                            });
+                          }}
+                        >
+                          עריכה
+                        </button>
+                        <button
+                          className="ghost-btn danger-text"
+                          type="button"
+                          onClick={() => {
+                            const shouldDelete = window.confirm(
+                              "למחוק את התשלום הזה? הפעולה תעדכן גם את היתרה של המטופל.",
+                            );
+
+                            if (!shouldDelete) {
+                              return;
+                            }
+
+                            if (editingPaymentId === payment.id) {
+                              resetPaymentForm();
+                            }
+
+                            onDeletePayment(payment.id);
+                          }}
+                        >
+                          מחיקה
+                        </button>
+                      </div>
+                    ) : null}
+                  </article>
+                ))}
+                {payments.length === 0 ? (
+                  <div className="empty-card">עדיין אין תשלומים במטופל הזה.</div>
+                ) : null}
+              </div>
+              <div className="workspace-table-wrap workspace-desktop-only">
                 <table className="workspace-table">
                   <thead>
                     <tr>
