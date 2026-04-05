@@ -1,8 +1,19 @@
 "use client";
 
+import {
+  type AccessContext,
+  type AppRole,
+  type AppSection,
+  canEditClinicalNotes,
+  canManageAppointments,
+  canManagePatients,
+  getRoleLabel,
+  getVisibleSections,
+} from "@/lib/clinicflow-access";
 import { normalizeWhatsAppPhone } from "@/lib/phone";
+import { PatientProfileWorkspace } from "@/components/patient-profile-workspace";
 import { getSupabaseClient } from "@/lib/supabase";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
 
 type Therapist = {
   id: string;
@@ -21,6 +32,26 @@ type Patient = {
   treatment_goal: string | null;
   therapist_id: string | null;
   phone?: string | null;
+  email?: string | null;
+  city?: string | null;
+  address?: string | null;
+  birth_date?: string | null;
+  gender?: string | null;
+  occupation?: string | null;
+  referring_source?: string | null;
+  intake_summary?: string | null;
+  medical_background?: string | null;
+  medications?: string | null;
+  allergies?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  insurance_provider?: string | null;
+  coverage_track?: string | null;
+  communication_preference?: string | null;
+  preferred_days?: string | null;
+  attendance_risk?: string | null;
+  functional_status?: string | null;
+  payment_balance?: number | null;
 };
 
 type Appointment = {
@@ -47,6 +78,7 @@ type ClinicFlowAppProps = {
   therapists: Therapist[];
   initialPatients: Patient[];
   appointments: Appointment[];
+  accessContext: AccessContext;
 };
 
 type AddPatientForm = {
@@ -62,6 +94,8 @@ type JournalForm = {
   status: string;
   diagnosis: string;
   goal: string;
+  templateKey: string;
+  templateAnswers: Record<string, string>;
   latestNote: string;
   homeProgram: string;
   phone: string;
@@ -100,6 +134,71 @@ type ReminderNotice = {
   sentAt?: string | null;
 };
 
+type DemoTherapistSeed = {
+  full_name: string;
+  profession: string;
+  specialty: string;
+  phone: string;
+};
+
+type DemoPatientSeed = {
+  full_name: string;
+  discipline: string;
+  status: string;
+  diagnosis: string;
+  treatment_goal: string;
+  phone: string;
+  email: string;
+  city: string;
+  address: string;
+  birth_date: string;
+  gender: string;
+  occupation: string;
+  referring_source: string;
+  intake_summary: string;
+  medical_background: string;
+  medications: string;
+  allergies: string;
+  emergency_contact_name: string;
+  emergency_contact_phone: string;
+  insurance_provider: string;
+  coverage_track: string;
+  communication_preference: string;
+  preferred_days: string;
+  attendance_risk: string;
+  functional_status: string;
+  payment_balance: number;
+  therapistName: string;
+  appointments: Array<{
+    daysOffset: number;
+    hour: number;
+    minute: number;
+    room: string;
+    summary: string;
+    status?: string;
+  }>;
+  journalEntries: Array<{
+    daysOffset: number;
+    content: string;
+    homeProgram?: string;
+  }>;
+};
+
+type JournalTemplateField = {
+  key: string;
+  label: string;
+  placeholder: string;
+  suggestions?: string[];
+};
+
+type JournalTemplate = {
+  key: string;
+  label: string;
+  description: string;
+  disciplines: string[];
+  sections: JournalTemplateField[];
+};
+
 const defaultAddPatientForm: AddPatientForm = {
   full_name: "",
   discipline: "פיזיותרפיה",
@@ -113,10 +212,285 @@ const defaultJournalForm: JournalForm = {
   status: "חדש",
   diagnosis: "",
   goal: "",
+  templateKey: "followup",
+  templateAnswers: {},
   latestNote: "",
   homeProgram: "",
   phone: "",
 };
+
+const journalTemplates: JournalTemplate[] = [
+  {
+    key: "intake",
+    label: "אינטייק והערכה ראשונית",
+    description: "פתיחת תהליך, מיפוי מצב פתיחה והגדרת כיוון טיפולי.",
+    disciplines: ["פיזיותרפיה", "ריפוי בעיסוק"],
+    sections: [
+      {
+        key: "reason",
+        label: "סיבת פניה",
+        placeholder: "תיאור הקושי המרכזי או הסיבה שבגללה המטופל הגיע",
+        suggestions: ["כאב מתמשך", "קושי תפקודי", "הערכה ראשונית"],
+      },
+      {
+        key: "baseline",
+        label: "מצב פתיחה",
+        placeholder: "מה מצב המטופל כרגע מבחינת תפקוד, כאב, ויסות או עצמאות",
+        suggestions: ["כאב במאמץ", "קושי בהתארגנות", "סבולת נמוכה"],
+      },
+      {
+        key: "plan",
+        label: "תוכנית התחלה",
+        placeholder: "מה הוגדר להתחלה, מה תדירות הטיפול ומה מטרת השלב הראשון",
+        suggestions: ["בניית שגרה טיפולית", "הדרכת בית", "הפחתת כאב"],
+      },
+    ],
+  },
+  {
+    key: "followup",
+    label: "מעקב שוטף",
+    description: "בדיקת התקדמות, מה נעשה במפגש, ומה ההחלטה להמשך.",
+    disciplines: ["פיזיותרפיה", "ריפוי בעיסוק"],
+    sections: [
+      {
+        key: "progress",
+        label: "התקדמות",
+        placeholder: "מה השתפר, מה נתקע, ואיך עבר הזמן מאז המפגש הקודם",
+        suggestions: ["שיפור חלקי", "עמידה טובה בתרגול", "קושי בהתמדה"],
+      },
+      {
+        key: "session",
+        label: "מה נעשה במפגש",
+        placeholder: "התערבויות, תרגול, התאמות או הדרכה שבוצעו במפגש",
+        suggestions: ["תרגול הדרגתי", "הדרכת הורה", "התאמת סביבה"],
+      },
+      {
+        key: "next_step",
+        label: "החלטה להמשך",
+        placeholder: "מה ממשיכים, מה משנים, ועל מה חשוב לעקוב עד הפגישה הבאה",
+        suggestions: ["להמשיך באותה תוכנית", "להעלות עומס", "מעקב בעוד שבוע"],
+      },
+    ],
+  },
+  {
+    key: "discharge",
+    label: "סיכום והמלצות",
+    description: "סיכום תהליך, מצב נוכחי והמלצות לשלב הבא.",
+    disciplines: ["פיזיותרפיה", "ריפוי בעיסוק"],
+    sections: [
+      {
+        key: "summary",
+        label: "סיכום התהליך",
+        placeholder: "תיאור קצר של עיקר התהליך וההתקדמות המצטברת",
+        suggestions: ["עמידה ביעדים", "שיפור תפקודי משמעותי", "נדרש מעקב נוסף"],
+      },
+      {
+        key: "status_now",
+        label: "מצב נוכחי",
+        placeholder: "מה מצב המטופל נכון לעכשיו",
+        suggestions: ["עצמאות טובה יותר", "כאב קל בלבד", "תפקוד יציב יותר"],
+      },
+      {
+        key: "recommendations",
+        label: "המלצות להמשך",
+        placeholder: "תרגול, מעקב, המלצות או נקודות חשובות להמשך",
+        suggestions: ["המשך תרגול עצמי", "מעקב לפי צורך", "פניה חוזרת בהחמרה"],
+      },
+    ],
+  },
+];
+
+const demoTherapists: DemoTherapistSeed[] = [
+  {
+    full_name: "חן תאסיריה",
+    profession: "פיזיותרפיה",
+    specialty: "שיקום אורתופדי וספורט",
+    phone: "0501112233",
+  },
+  {
+    full_name: "מאיה לוי",
+    profession: "ריפוי בעיסוק",
+    specialty: "ויסות חושי ותפקוד יומיומי",
+    phone: "0502223344",
+  },
+  {
+    full_name: "עמית כהן",
+    profession: "פיזיותרפיה",
+    specialty: "שיקום נוירולוגי ומעקב תפקודי",
+    phone: "0503334455",
+  },
+];
+
+const demoPatients: DemoPatientSeed[] = [
+  {
+    full_name: "דמו נועה אלקיים",
+    discipline: "פיזיותרפיה",
+    status: "בטיפול",
+    diagnosis: "כאבי ברך לאחר עומס מתמשך",
+    treatment_goal: "חזרה לפעילות מלאה והפחתת כאב במדרגות",
+    phone: "0504445566",
+    email: "noa.demo@example.com",
+    city: "חיפה",
+    address: "רחוב הגפן 18",
+    birth_date: "1996-07-14",
+    gender: "אישה",
+    occupation: "מאמנת כושר",
+    referring_source: "הפניה מאורתופד ספורט",
+    intake_summary:
+      "הגיעה בעקבות כאב בברך ימין שמתגבר באימוני כוח, עלייה במדרגות וריצה קצרה. מוטיבציה גבוהה לחזור לאימונים מלאים.",
+    medical_background:
+      "ללא ניתוחים קודמים. היסטוריה של עומס חוזר סביב הפיקה בתקופות אימון אינטנסיביות.",
+    medications: "נוטלת משכך כאב לפי צורך בלבד",
+    allergies: "ללא רגישויות ידועות",
+    emergency_contact_name: "אלון אלקיים",
+    emergency_contact_phone: "0507001100",
+    insurance_provider: "הפניקס",
+    coverage_track: "פרטי + החזר משלים",
+    communication_preference: "וואטסאפ",
+    preferred_days: "ראשון, רביעי",
+    attendance_risk: "נמוך",
+    functional_status: "מסוגלת לעבוד, אך מגבילה קפיצות, כריעה וריצה ממושכת.",
+    payment_balance: -180,
+    therapistName: "חן תאסיריה",
+    appointments: [
+      {
+        daysOffset: -12,
+        hour: 10,
+        minute: 0,
+        room: "חדר 2",
+        summary: "הערכה ראשונית ותוכנית עבודה",
+      },
+      {
+        daysOffset: -5,
+        hour: 11,
+        minute: 30,
+        room: "חדר 2",
+        summary: "תרגול הדרגתי ושיפור שליטה",
+      },
+      {
+        daysOffset: 3,
+        hour: 9,
+        minute: 0,
+        room: "חדר 1",
+        summary: "מעקב תפקודי והתקדמות לעומסים",
+      },
+    ],
+    journalEntries: [
+      {
+        daysOffset: -12,
+        content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: כאב בברך ימין לאחר עומס באימונים\nמצב פתיחה: קושי בעלייה במדרגות ובכריעה\nתוכנית התחלה: חיזוק הדרגתי, הפחתת עומס והדרכת בית",
+        homeProgram: "תרגילי חיזוק ירך קדמית 3 פעמים בשבוע",
+      },
+      {
+        daysOffset: -5,
+        content: "תבנית: מעקב שוטף\nהתקדמות: ירידה בעוצמת הכאב במנוחה\nמה נעשה במפגש: תרגול יציבה, שליטה ותבניות תנועה\nהחלטה להמשך: המשך עבודה הדרגתית והגדלת טווח",
+        homeProgram: "תרגול מדרגה נמוכה וסקוואט חלקי",
+      },
+    ],
+  },
+  {
+    full_name: "דמו אורי בן דוד",
+    discipline: "ריפוי בעיסוק",
+    status: "מעקב",
+    diagnosis: "קושי בהתארגנות בוקר וויסות",
+    treatment_goal: "שיפור עצמאות ברוטינת בוקר והפחתת הצפה חושית",
+    phone: "0505556677",
+    email: "uri.demo@example.com",
+    city: "קרית מוצקין",
+    address: "רחוב הדקל 7",
+    birth_date: "2016-11-03",
+    gender: "בן",
+    occupation: "תלמיד כיתה ד'",
+    referring_source: "הפניה מיועצת בית הספר",
+    intake_summary:
+      "הפניה עקב קושי בהתארגנות, מעברים ועומס חושי בשעות הבוקר. ההורים מדווחים על שחיקה גבוהה סביב היציאה למסגרת.",
+    medical_background:
+      "אבחון קודם של קשיי ויסות. ללא אשפוזים או רקע נוירולוגי משמעותי.",
+    medications: "ללא טיפול תרופתי קבוע",
+    allergies: "רגישות קלה לאבק",
+    emergency_contact_name: "שירי בן דוד",
+    emergency_contact_phone: "0526002200",
+    insurance_provider: "מכבי שלי",
+    coverage_track: "התחייבות קופה",
+    communication_preference: "טלפון להורה",
+    preferred_days: "שני, חמישי",
+    attendance_risk: "בינוני",
+    functional_status: "זקוק לתיווך במעברים, התארגנות עצמית חלקית בלבד בשעות הלחץ.",
+    payment_balance: 0,
+    therapistName: "מאיה לוי",
+    appointments: [
+      {
+        daysOffset: -20,
+        hour: 14,
+        minute: 0,
+        room: "חדר 3",
+        summary: "אינטייק עם הורה ומיפוי מטרות",
+      },
+      {
+        daysOffset: -7,
+        hour: 15,
+        minute: 15,
+        room: "חדר 3",
+        summary: "עבודה על רצף בוקר וכלים חושיים",
+      },
+      {
+        daysOffset: 6,
+        hour: 13,
+        minute: 45,
+        room: "חדר 4",
+        summary: "מעקב תפקודי והטמעת אסטרטגיות",
+      },
+    ],
+    journalEntries: [
+      {
+        daysOffset: -20,
+        content: "תבנית: אינטייק והערכה ראשונית\nסיבת פניה: קושי במעברים והתארגנות בבוקר\nמצב פתיחה: צורך בתיווך גבוה מצד ההורה\nתוכנית התחלה: בניית רצף קבוע, עזרים חזותיים והדרכה להורים",
+        homeProgram: "לוח חזותי לבוקר ונקודת בקרה אחת קבועה",
+      },
+    ],
+  },
+  {
+    full_name: "דמו רועי פרץ",
+    discipline: "פיזיותרפיה",
+    status: "חדש",
+    diagnosis: "כאבי גב תחתון לאחר ישיבה ממושכת",
+    treatment_goal: "הפחתת כאב ושיפור סבולת לישיבה ולעבודה",
+    phone: "0506667788",
+    email: "roee.demo@example.com",
+    city: "עכו",
+    address: "רחוב הכלנית 3",
+    birth_date: "1988-02-27",
+    gender: "גבר",
+    occupation: "מפתח תוכנה",
+    referring_source: "הגעה עצמאית דרך אתר הקליניקה",
+    intake_summary:
+      "מדווח על כאב גב תחתון שמתגבר לאחר ישיבה ממושכת ועבודה מול מחשב. מחפש פתרון פרקטי לשילוב ביום עבודה.",
+    medical_background:
+      "פריצת דיסק ישנה ללא ניתוח. עשה פיזיותרפיה לפני שלוש שנים עם שיפור חלקי.",
+    medications: "אטופן לפי צורך פעם-פעמיים בשבוע",
+    allergies: "ללא רגישויות ידועות",
+    emergency_contact_name: "יעל פרץ",
+    emergency_contact_phone: "0549003300",
+    insurance_provider: "כלל בריאות",
+    coverage_track: "פרטי",
+    communication_preference: "מייל + וואטסאפ",
+    preferred_days: "שלישי, שישי",
+    attendance_risk: "נמוך",
+    functional_status: "עובד במשרה מלאה אך קם לעיתים תכופות ומגביל נהיגה ארוכה.",
+    payment_balance: 320,
+    therapistName: "עמית כהן",
+    appointments: [
+      {
+        daysOffset: 1,
+        hour: 12,
+        minute: 0,
+        room: "חדר 1",
+        summary: "אבחון ראשוני והדרכת מנח",
+      },
+    ],
+    journalEntries: [],
+  },
+];
 
 const defaultAppointmentForm: AppointmentForm = {
   patient_id: "",
@@ -206,15 +580,69 @@ function getReminderTitle(kind: ReminderKind) {
   return "תזכורת למטופל";
 }
 
+function getJournalTemplate(templateKey: string, discipline?: string) {
+  const fallbackTemplate =
+    journalTemplates.find((template) => template.key === "followup") ?? journalTemplates[0];
+  const matchingTemplate =
+    journalTemplates.find((template) => template.key === templateKey) ?? fallbackTemplate;
+
+  if (!discipline || matchingTemplate.disciplines.includes(discipline)) {
+    return matchingTemplate;
+  }
+
+  return (
+    journalTemplates.find((template) => template.disciplines.includes(discipline)) ??
+    fallbackTemplate
+  );
+}
+
+function createTemplateAnswers(
+  template: JournalTemplate,
+  current?: Record<string, string>,
+) {
+  return Object.fromEntries(
+    template.sections.map((section) => [section.key, current?.[section.key] ?? ""]),
+  );
+}
+
+function buildStructuredJournalNote(form: JournalForm, discipline?: string) {
+  const template = getJournalTemplate(form.templateKey, discipline);
+  const structuredSections = template.sections
+    .map((section) => {
+      const value = form.templateAnswers[section.key]?.trim();
+      return value ? `${section.label}: ${value}` : "";
+    })
+    .filter(Boolean);
+
+  if (structuredSections.length === 0 && !form.latestNote.trim()) {
+    return "";
+  }
+
+  return [
+    `תבנית: ${template.label}`,
+    ...structuredSections,
+    form.latestNote.trim() ? `סיכום חופשי: ${form.latestNote.trim()}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function buildJournalForm(patient?: Patient): JournalForm {
+  const template = getJournalTemplate("followup", patient?.discipline);
   if (!patient) {
-    return defaultJournalForm;
+    return {
+      ...defaultJournalForm,
+      templateKey: template.key,
+      templateAnswers: createTemplateAnswers(template),
+    };
   }
 
   return {
     status: patient.status,
     diagnosis: patient.diagnosis ?? "",
     goal: patient.treatment_goal ?? "",
+    templateKey: template.key,
+    templateAnswers: createTemplateAnswers(template),
     latestNote: "",
     homeProgram: "",
     phone: patient.phone ?? "",
@@ -291,9 +719,17 @@ export function ClinicFlowApp({
   therapists: initialTherapists,
   initialPatients,
   appointments: initialAppointments,
+  accessContext,
 }: ClinicFlowAppProps) {
   const supabase = useMemo(() => getSupabaseClient(), []);
-  const [activeSection, setActiveSection] = useState("dashboard");
+  const [currentRole, setCurrentRole] = useState<AppRole>(accessContext.role);
+  const visibleSections = useMemo(
+    () => getVisibleSections(currentRole),
+    [currentRole],
+  );
+  const [activeSection, setActiveSection] = useState<AppSection>(
+    visibleSections[0]?.key ?? "dashboard",
+  );
   const [therapists, setTherapists] = useState(initialTherapists);
   const [patients, setPatients] = useState(initialPatients);
   const [appointments, setAppointments] = useState(initialAppointments);
@@ -325,6 +761,8 @@ export function ClinicFlowApp({
   const [isSavingJournal, setIsSavingJournal] = useState(false);
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
   const [editingAppointmentId, setEditingAppointmentId] = useState("");
+  const [isSeedingDemo, setIsSeedingDemo] = useState(false);
+  const [demoSeedStatus, setDemoSeedStatus] = useState("");
   const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>(
     Object.fromEntries(initialPatients.map((patient) => [patient.id, patient.status])),
   );
@@ -382,6 +820,32 @@ export function ClinicFlowApp({
     (appointment) => appointment.patient_id === selectedPatient?.id,
   );
   const nextAppointmentForSelectedPatient = selectedPatientAppointments[0];
+  const selectedPatientReadiness = selectedPatient
+    ? [
+        {
+          label: "טלפון מטופל",
+          done: Boolean(selectedPatient.phone?.trim()),
+          hint: selectedPatient.phone ? selectedPatient.phone : "חסר מספר לעדכונים ותזכורות",
+        },
+        {
+          label: "אבחנה עדכנית",
+          done: Boolean(selectedPatient.diagnosis?.trim()),
+          hint: selectedPatient.diagnosis ? "קיימת אבחנה בתיק" : "מומלץ להשלים אבחנה",
+        },
+        {
+          label: "יעד טיפולי",
+          done: Boolean(selectedPatient.treatment_goal?.trim()),
+          hint: selectedPatient.treatment_goal ? "היעד קיים בתיק" : "חסר יעד טיפולי מסודר",
+        },
+        {
+          label: "תור עתידי",
+          done: Boolean(nextAppointmentForSelectedPatient),
+          hint: nextAppointmentForSelectedPatient
+            ? `${formatAppointmentDate(nextAppointmentForSelectedPatient.appointment_at)} | ${formatAppointmentTime(nextAppointmentForSelectedPatient.appointment_at)}`
+            : "אין כרגע טיפול המשך קבוע",
+        },
+      ]
+    : [];
   const today = new Date();
   const todayKey = today.toDateString();
   const now = today.getTime();
@@ -454,6 +918,19 @@ export function ClinicFlowApp({
     String(index + 8).padStart(2, "0"),
   );
   const minuteOptions = ["00", "15", "30", "45"];
+  const activeJournalTemplate = useMemo(
+    () => getJournalTemplate(journalForm.templateKey, selectedPatient?.discipline),
+    [journalForm.templateKey, selectedPatient?.discipline],
+  );
+  const patientManagementEnabled = canManagePatients(currentRole);
+  const appointmentManagementEnabled = canManageAppointments(currentRole);
+  const clinicalNotesEnabled = canEditClinicalNotes(currentRole);
+
+  useEffect(() => {
+    if (!visibleSections.some((section) => section.key === activeSection)) {
+      setActiveSection(visibleSections[0]?.key ?? "dashboard");
+    }
+  }, [activeSection, visibleSections]);
 
   function prependReminderNotices(nextNotices: ReminderNotice[]) {
     setReminderNotices((current) => {
@@ -525,6 +1002,16 @@ export function ClinicFlowApp({
   useEffect(() => {
     setAppointments(initialAppointments);
   }, [initialAppointments]);
+
+  const runDemoSeedIfNeeded = useEffectEvent(() => {
+    if (initialPatients.length === 0 && patients.length === 0 && !isSeedingDemo) {
+      void handleLoadDemoData();
+    }
+  });
+
+  useEffect(() => {
+    runDemoSeedIfNeeded();
+  }, [initialPatients.length, isSeedingDemo, patients.length]);
 
   useEffect(() => {
     if (!selectedPatient) {
@@ -784,14 +1271,18 @@ export function ClinicFlowApp({
     }
 
     let insertedEntry: JournalEntry | null = null;
+    const noteContent = buildStructuredJournalNote(
+      journalForm,
+      selectedPatient.discipline,
+    ).trim();
 
-    if (journalForm.latestNote.trim()) {
+    if (noteContent) {
       const { data: journalData, error: journalError } = await supabase
         .from("journal_entries")
         .insert({
           patient_id: selectedPatient.id,
           therapist_id: selectedPatient.therapist_id,
-          content: journalForm.latestNote.trim(),
+          content: noteContent,
           home_program: journalForm.homeProgram.trim() || null,
         })
         .select("*")
@@ -1051,6 +1542,17 @@ export function ClinicFlowApp({
     setJournalSaveStatus("");
   }
 
+  function handleFocusPatient(patientId: string) {
+    const patient = patients.find((item) => item.id === patientId);
+    setSelectedPatientId(patientId);
+    setAppointmentForm((current) => ({
+      ...current,
+      patient_id: patientId,
+      therapist_id: patient?.therapist_id ?? current.therapist_id,
+    }));
+    setJournalSaveStatus("");
+  }
+
   function handleCreateAppointmentForPatient(patientId: string) {
     const patient = patients.find((item) => item.id === patientId);
     setSelectedPatientId(patientId);
@@ -1146,6 +1648,177 @@ export function ClinicFlowApp({
     setActiveSection("appointments");
   }
 
+  async function handleLoadDemoData() {
+    if (isSeedingDemo) {
+      return;
+    }
+
+    setIsSeedingDemo(true);
+    setDemoSeedStatus("");
+
+    try {
+      const existingNames = new Set(patients.map((patient) => patient.full_name));
+      const patientsToSeed = demoPatients.filter(
+        (patient) => !existingNames.has(patient.full_name),
+      );
+
+      if (patientsToSeed.length === 0) {
+        setDemoSeedStatus("נתוני הדמו כבר נוספו קודם. חפש מטופלים שמתחילים ב-\"דמו\"");
+        return;
+      }
+
+      const demoTherapistRows: Therapist[] = demoTherapists.map((therapist) => ({
+        id: crypto.randomUUID(),
+        full_name: therapist.full_name,
+        profession: therapist.profession,
+        specialty: therapist.specialty,
+        phone: therapist.phone,
+      }));
+
+      const therapistMap = new Map(
+        demoTherapistRows.map((therapist) => [therapist.full_name, therapist]),
+      );
+
+      const demoPatientRows: Patient[] = patientsToSeed.map((patient) => ({
+        id: crypto.randomUUID(),
+        full_name: patient.full_name,
+        discipline: patient.discipline,
+        status: patient.status,
+        diagnosis: patient.diagnosis,
+        treatment_goal: patient.treatment_goal,
+        therapist_id: therapistMap.get(patient.therapistName)?.id ?? null,
+        phone: patient.phone,
+        email: patient.email,
+        city: patient.city,
+        address: patient.address,
+        birth_date: patient.birth_date,
+        gender: patient.gender,
+        occupation: patient.occupation,
+        referring_source: patient.referring_source,
+        intake_summary: patient.intake_summary,
+        medical_background: patient.medical_background,
+        medications: patient.medications,
+        allergies: patient.allergies,
+        emergency_contact_name: patient.emergency_contact_name,
+        emergency_contact_phone: patient.emergency_contact_phone,
+        insurance_provider: patient.insurance_provider,
+        coverage_track: patient.coverage_track,
+        communication_preference: patient.communication_preference,
+        preferred_days: patient.preferred_days,
+        attendance_risk: patient.attendance_risk,
+        functional_status: patient.functional_status,
+        payment_balance: patient.payment_balance,
+      }));
+
+      const patientMap = new Map(
+        demoPatientRows.map((patient) => [patient.full_name, patient]),
+      );
+
+      const demoAppointmentRows: Appointment[] = patientsToSeed
+        .flatMap((patient) =>
+          patient.appointments.map((appointment) => {
+            const date = new Date();
+            date.setDate(date.getDate() + appointment.daysOffset);
+            date.setHours(appointment.hour, appointment.minute, 0, 0);
+
+            return {
+              id: crypto.randomUUID(),
+              patient_id: patientMap.get(patient.full_name)?.id ?? "",
+              therapist_id: therapistMap.get(patient.therapistName)?.id ?? null,
+              appointment_at: date.toISOString(),
+              room: appointment.room,
+              status: appointment.status ?? "scheduled",
+              summary: appointment.summary,
+            };
+          }),
+        )
+        .sort(
+          (a, b) =>
+            new Date(a.appointment_at).getTime() - new Date(b.appointment_at).getTime(),
+        );
+
+      const demoJournalRows: JournalEntry[] = patientsToSeed.flatMap((patient) =>
+        patient.journalEntries.map((entry) => {
+          const date = new Date();
+          date.setDate(date.getDate() + entry.daysOffset);
+          date.setHours(9, 0, 0, 0);
+
+          return {
+            id: crypto.randomUUID(),
+            patient_id: patientMap.get(patient.full_name)?.id ?? "",
+            therapist_id: therapistMap.get(patient.therapistName)?.id ?? null,
+            entry_date: date.toISOString().slice(0, 10),
+            content: entry.content,
+            home_program: entry.homeProgram ?? null,
+            created_at: date.toISOString(),
+          };
+        }),
+      );
+
+      setTherapists((current) => [...demoTherapistRows, ...current]);
+      setPatients((current) => [...demoPatientRows, ...current]);
+      setAppointments((current) =>
+        [...current, ...demoAppointmentRows].sort(
+          (a, b) =>
+            new Date(a.appointment_at).getTime() - new Date(b.appointment_at).getTime(),
+        ),
+      );
+      setJournalEntries(demoJournalRows.filter((entry) => entry.patient_id === demoPatientRows[0]?.id));
+      setStatusDrafts((current) => ({
+        ...current,
+        ...Object.fromEntries(demoPatientRows.map((patient) => [patient.id, patient.status])),
+      }));
+      setSelectedPatientId(demoPatientRows[0]?.id ?? selectedPatientId);
+      setDemoSeedStatus("נטענו נתוני דמו מקומיים בהצלחה. חפש מטופלים שמתחילים ב-\"דמו\"");
+      setActiveSection("patients");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "טעינת נתוני הדמו נכשלה";
+      setDemoSeedStatus(message);
+    } finally {
+      setIsSeedingDemo(false);
+    }
+  }
+
+  function handleJournalTemplateChange(templateKey: string) {
+    const nextTemplate = getJournalTemplate(templateKey, selectedPatient?.discipline);
+    setJournalForm((current) => ({
+      ...current,
+      templateKey: nextTemplate.key,
+      templateAnswers: createTemplateAnswers(nextTemplate, current.templateAnswers),
+    }));
+  }
+
+  function handleJournalTemplateAnswerChange(fieldKey: string, value: string) {
+    setJournalForm((current) => ({
+      ...current,
+      templateAnswers: {
+        ...current.templateAnswers,
+        [fieldKey]: value,
+      },
+    }));
+  }
+
+  function handleJournalSuggestionInsert(fieldKey: string, suggestion: string) {
+    setJournalForm((current) => {
+      const currentValue = current.templateAnswers[fieldKey]?.trim();
+
+      return {
+        ...current,
+        templateAnswers: {
+          ...current.templateAnswers,
+          [fieldKey]: currentValue ? `${currentValue}, ${suggestion}` : suggestion,
+        },
+      };
+    });
+  }
+
+  function handleGenerateStructuredSummary() {
+    setJournalForm((current) => ({
+      ...current,
+      latestNote: buildStructuredJournalNote(current, selectedPatient?.discipline),
+    }));
+  }
+
   return (
     <>
       <main className="page-shell">
@@ -1154,16 +1827,13 @@ export function ClinicFlowApp({
             <div className="topbar-copy">
               <p className="eyebrow">ClinicFlow</p>
               <h1>מערכת המכון</h1>
+              <span className="topbar-meta">
+                {accessContext.clinicName} | {getRoleLabel(currentRole)}
+              </span>
             </div>
 
             <nav className="top-nav">
-              {[
-                ["dashboard", "לוח בקרה"],
-                ["patients", "מטופלים"],
-                ["appointments", "יומן טיפולים"],
-                ["team", "צוות"],
-              ["reports", "דוחות"],
-            ].map(([key, label]) => (
+              {visibleSections.map(({ key, label }) => (
               <button
                 key={key}
                 className={`nav-link ${activeSection === key ? "active" : ""}`}
@@ -1177,6 +1847,22 @@ export function ClinicFlowApp({
             </nav>
 
             <section className="topbar-summary">
+              <div className="summary-pill role-pill">
+                <strong>{accessContext.displayName}</strong>
+                <span>{getRoleLabel(currentRole)}</span>
+              </div>
+              <div className="summary-pill role-switch-pill">
+                <strong>מצב בדיקה</strong>
+                <select
+                  value={currentRole}
+                  onChange={(event) => setCurrentRole(event.target.value as AppRole)}
+                >
+                  <option value="admin">מנהל/ת</option>
+                  <option value="therapist">מטפל/ת</option>
+                  <option value="reception">קבלה</option>
+                  <option value="finance">כספים</option>
+                </select>
+              </div>
               <div className="summary-pill">
                 <strong>{todayAppointments.length}</strong>
                 <span>תורים היום</span>
@@ -1195,21 +1881,36 @@ export function ClinicFlowApp({
               <p>בחר פעולה כדי להוסיף מטופל חדש או לקבוע טיפול.</p>
             </div>
             <div className="hero-actions">
-              <button
-                className="primary-btn"
-                type="button"
-                onClick={() => setShowPatientDialog(true)}
-              >
-                הוספת מטופל
-              </button>
+              {patientManagementEnabled ? (
+                <button
+                  className="primary-btn"
+                  type="button"
+                  onClick={() => setShowPatientDialog(true)}
+                >
+                  הוספת מטופל
+                </button>
+              ) : null}
+              {appointmentManagementEnabled ? (
+                <button
+                  className="secondary-btn"
+                  type="button"
+                  onClick={handleOpenAppointmentDialog}
+                >
+                  מעבר ליומן
+                </button>
+              ) : null}
               <button
                 className="secondary-btn"
                 type="button"
-                onClick={handleOpenAppointmentDialog}
+                onClick={() => {
+                  void handleLoadDemoData();
+                }}
+                disabled={isSeedingDemo}
               >
-                מעבר ליומן
+                {isSeedingDemo ? "טוען דמו..." : "טעינת נתוני דמו"}
               </button>
             </div>
+            {demoSeedStatus ? <div className="demo-status-banner">{demoSeedStatus}</div> : null}
           </section>
 
           <section className={`panel ${activeSection === "dashboard" ? "active" : ""}`}>
@@ -1337,6 +2038,7 @@ export function ClinicFlowApp({
                 <div
                   key={patient.id}
                   className={`journal-patient-item patient-option-item ${selectedPatient?.id === patient.id ? "selected" : ""}`}
+                  onClick={() => handleFocusPatient(patient.id)}
                 >
                   <div>
                     <strong>{patient.full_name}</strong>
@@ -1369,76 +2071,101 @@ export function ClinicFlowApp({
                         <option value="מעקב">מעקב</option>
                       </select>
                     </label>
-                    <button
-                      className="secondary-btn"
-                      type="button"
-                      onClick={() => handleQuickStatusSave(patient.id)}
-                    >
-                      שמירת סטטוס
-                    </button>
-                    <button
-                      className="ghost-btn"
-                      type="button"
-                      onClick={() => handleSelectPatient(patient.id)}
-                    >
-                      פתיחת יומן
-                    </button>
-                    <button
-                      className="secondary-btn"
-                      type="button"
-                      onClick={() => handleCreateAppointmentForPatient(patient.id)}
-                    >
-                      קביעת טיפול
-                    </button>
-                    <button
-                      className="danger-btn"
-                      type="button"
-                      onClick={() => handleDeletePatient(patient.id)}
-                    >
-                      מחיקת מטופל
-                    </button>
+                    {patientManagementEnabled ? (
+                      <button
+                        className="secondary-btn"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleQuickStatusSave(patient.id);
+                        }}
+                      >
+                        שמירת סטטוס
+                      </button>
+                    ) : null}
+                    {clinicalNotesEnabled ? (
+                      <button
+                        className="ghost-btn"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleSelectPatient(patient.id);
+                        }}
+                      >
+                        פתיחת יומן
+                      </button>
+                    ) : null}
+                    {appointmentManagementEnabled ? (
+                      <button
+                        className="secondary-btn"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleCreateAppointmentForPatient(patient.id);
+                        }}
+                      >
+                        קביעת טיפול
+                      </button>
+                    ) : null}
+                    {patientManagementEnabled ? (
+                      <button
+                        className="danger-btn"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleDeletePatient(patient.id);
+                        }}
+                      >
+                        מחיקת מטופל
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               ))}
             </div>
 
-            <article className="card journal-editor">
-              <div className="section-head">
-                <div>
-                  <p className="section-tag">יומן מטופל</p>
-                  <h3>בחר מטופל לפתיחת יומן</h3>
-                </div>
-                <div className="section-summary">בחירה מהרשימה</div>
-              </div>
-              <div className="journal-patient-list">
-                {filteredPatients.map((patient) => (
-                  <button
-                    key={patient.id}
-                    type="button"
-                    className="journal-patient-item"
-                    onClick={() => handleSelectPatient(patient.id)}
-                  >
-                    <div>
-                      <strong>{patient.full_name}</strong>
-                      <div className="item-meta">
-                        {patient.discipline} | {therapistNameById.get(patient.therapist_id ?? "") ?? "ללא מטפל"}
-                      </div>
-                    </div>
-                    <div className="chips">
-                      <span className="chip warm">{patient.status}</span>
-                      <span className="chip">
-                        {nextAppointmentByPatientId.get(patient.id)
-                          ? formatAppointmentDate(nextAppointmentByPatientId.get(patient.id)!.appointment_at)
-                          : "ללא תור"}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-                {filteredPatients.length === 0 ? (
-                  <div className="empty-card">לא נמצאו מטופלים לפי החיפוש.</div>
-                ) : null}
-              </div>
-            </article>
+            <PatientProfileWorkspace
+              patient={selectedPatient}
+              appointments={selectedPatientAppointments}
+              journalEntries={journalEntries}
+              therapistName={
+                therapistNameById.get(selectedPatient?.therapist_id ?? "") ?? "ללא מטפל"
+              }
+              statusDraft={selectedPatient ? statusDrafts[selectedPatient.id] ?? selectedPatient.status : "חדש"}
+              canManagePatients={patientManagementEnabled}
+              canManageAppointments={appointmentManagementEnabled}
+              canEditClinicalNotes={clinicalNotesEnabled}
+              onStatusDraftChange={(value) => {
+                if (!selectedPatient) {
+                  return;
+                }
+                setStatusDrafts((current) => ({
+                  ...current,
+                  [selectedPatient.id]: value,
+                }));
+              }}
+              onStatusSave={() => {
+                if (!selectedPatient) {
+                  return;
+                }
+                void handleQuickStatusSave(selectedPatient.id);
+              }}
+              onOpenJournal={() => {
+                if (!selectedPatient) {
+                  return;
+                }
+                handleSelectPatient(selectedPatient.id);
+              }}
+              onCreateAppointment={() => {
+                if (!selectedPatient) {
+                  return;
+                }
+                handleCreateAppointmentForPatient(selectedPatient.id);
+              }}
+              formatAppointmentDate={formatAppointmentDate}
+              formatAppointmentTime={formatAppointmentTime}
+              formatJournalDate={formatJournalDate}
+            />
             {deleteStatus ? <div className="item-meta">{deleteStatus}</div> : null}
           </section>
 
@@ -1459,9 +2186,13 @@ export function ClinicFlowApp({
                 <strong>תורים</strong>
                 <div className="item-meta">קביעת תור חדש או עריכת תור קיים</div>
               </div>
-              <button className="primary-btn" type="button" onClick={handleOpenAppointmentDialog}>
-                קביעת טיפול חדש
-              </button>
+              {appointmentManagementEnabled ? (
+                <button className="primary-btn" type="button" onClick={handleOpenAppointmentDialog}>
+                  קביעת טיפול חדש
+                </button>
+              ) : (
+                <div className="item-meta">לצפייה בלבד בתפקיד הנוכחי</div>
+              )}
             </div>
             <div className="appointments-layout">
               <article className="card">
@@ -1500,27 +2231,33 @@ export function ClinicFlowApp({
                           ) : (
                             <div className="item-meta">חסר מספר טלפון לשליחת תזכורת</div>
                           )}
-                          <button
-                            className="ghost-btn"
-                            type="button"
-                            onClick={() => handleSelectPatient(appointment.patient_id)}
-                          >
-                            פתיחת יומן מטופל
-                          </button>
-                          <button
-                            className="secondary-btn"
-                            type="button"
-                            onClick={() => handleEditAppointment(appointment)}
-                          >
-                            עריכת תור
-                          </button>
-                          <button
-                            className="danger-btn"
-                            type="button"
-                            onClick={() => handleDeleteAppointment(appointment.id)}
-                          >
-                            מחיקת תור
-                          </button>
+                          {clinicalNotesEnabled ? (
+                            <button
+                              className="ghost-btn"
+                              type="button"
+                              onClick={() => handleSelectPatient(appointment.patient_id)}
+                            >
+                              פתיחת יומן מטופל
+                            </button>
+                          ) : null}
+                          {appointmentManagementEnabled ? (
+                            <button
+                              className="secondary-btn"
+                              type="button"
+                              onClick={() => handleEditAppointment(appointment)}
+                            >
+                              עריכת תור
+                            </button>
+                          ) : null}
+                          {appointmentManagementEnabled ? (
+                            <button
+                              className="danger-btn"
+                              type="button"
+                              onClick={() => handleDeleteAppointment(appointment.id)}
+                            >
+                              מחיקת תור
+                            </button>
+                          ) : null}
                         </div>
                       </div>
                     </article>
@@ -2065,6 +2802,91 @@ export function ClinicFlowApp({
                   />
                 </label>
 
+                <div className="smart-template-card">
+                  <div className="card-head">
+                    <div>
+                      <strong>תבנית תיעוד חכמה</strong>
+                      <div className="item-meta">{activeJournalTemplate.description}</div>
+                    </div>
+                    <button
+                      className="ghost-btn"
+                      type="button"
+                      onClick={handleGenerateStructuredSummary}
+                    >
+                      בניית סיכום אוטומטי
+                    </button>
+                  </div>
+
+                  <label className="inline-field">
+                    סוג תבנית
+                    <select
+                      value={journalForm.templateKey}
+                      onChange={(event) => handleJournalTemplateChange(event.target.value)}
+                    >
+                      {journalTemplates
+                        .filter((template) => template.disciplines.includes(selectedPatient.discipline))
+                        .map((template) => (
+                          <option key={template.key} value={template.key}>
+                            {template.label}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+
+                  <div className="smart-template-grid">
+                    {activeJournalTemplate.sections.map((section) => (
+                      <label key={section.key} className="smart-template-field">
+                        {section.label}
+                        <textarea
+                          rows={3}
+                          value={journalForm.templateAnswers[section.key] ?? ""}
+                          onChange={(event) =>
+                            handleJournalTemplateAnswerChange(section.key, event.target.value)
+                          }
+                          placeholder={section.placeholder}
+                        />
+                        {section.suggestions?.length ? (
+                          <div className="suggestion-chips">
+                            {section.suggestions.map((suggestion) => (
+                              <button
+                                key={suggestion}
+                                className="chip-action"
+                                type="button"
+                                onClick={() =>
+                                  handleJournalSuggestionInsert(section.key, suggestion)
+                                }
+                              >
+                                {suggestion}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="smart-template-card">
+                  <div className="card-head">
+                    <div>
+                      <strong>בדיקת מוכנות לתהליך</strong>
+                      <div className="item-meta">תמונת מצב מהירה לפני שממשיכים טיפול</div>
+                    </div>
+                  </div>
+
+                  <div className="readiness-grid">
+                    {selectedPatientReadiness.map((item) => (
+                      <article
+                        key={item.label}
+                        className={`readiness-item ${item.done ? "done" : "missing"}`}
+                      >
+                        <strong>{item.label}</strong>
+                        <span>{item.hint}</span>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+
                 <label>
                   אבחנה
                   <textarea
@@ -2126,19 +2948,25 @@ export function ClinicFlowApp({
                 </label>
 
                 <div className="journal-actions">
-                  <button className="primary-btn" type="submit" disabled={isSavingJournal}>
+                  <button
+                    className="primary-btn"
+                    type="submit"
+                    disabled={isSavingJournal || !clinicalNotesEnabled}
+                  >
                     {isSavingJournal ? "שומר..." : "שמירת יומן"}
                   </button>
-                  <button
-                    className="secondary-btn"
-                    type="button"
-                    onClick={() => {
-                      setShowJournalDialog(false);
-                      handleCreateAppointmentForPatient(selectedPatient.id);
-                    }}
-                  >
-                    קביעת טיפול המשך
-                  </button>
+                  {appointmentManagementEnabled ? (
+                    <button
+                      className="secondary-btn"
+                      type="button"
+                      onClick={() => {
+                        setShowJournalDialog(false);
+                        handleCreateAppointmentForPatient(selectedPatient.id);
+                      }}
+                    >
+                      קביעת טיפול המשך
+                    </button>
+                  ) : null}
                   <div className="item-meta">{journalSaveStatus}</div>
                 </div>
               </form>
@@ -2152,7 +2980,12 @@ export function ClinicFlowApp({
                   {journalEntries.slice(0, 3).map((entry) => (
                     <div key={entry.id} className="list-item">
                       <strong>{formatJournalDate(entry.entry_date)}</strong>
-                      <div>{entry.content}</div>
+                      <div className="preserve-lines">{entry.content}</div>
+                      {entry.home_program ? (
+                        <div className="item-meta preserve-lines">
+                          תרגול בית: {entry.home_program}
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                   {journalEntries.length === 0 ? (

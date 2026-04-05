@@ -1,4 +1,5 @@
 import { ClinicFlowApp } from "@/components/clinicflow-app";
+import { defaultAccessContext } from "@/lib/clinicflow-access";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,26 @@ type Patient = {
   treatment_goal: string | null;
   therapist_id: string | null;
   phone: string | null;
+  email?: string | null;
+  city?: string | null;
+  address?: string | null;
+  birth_date?: string | null;
+  gender?: string | null;
+  occupation?: string | null;
+  referring_source?: string | null;
+  intake_summary?: string | null;
+  medical_background?: string | null;
+  medications?: string | null;
+  allergies?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  insurance_provider?: string | null;
+  coverage_track?: string | null;
+  communication_preference?: string | null;
+  preferred_days?: string | null;
+  attendance_risk?: string | null;
+  functional_status?: string | null;
+  payment_balance?: number | null;
 };
 
 type Appointment = {
@@ -65,6 +86,7 @@ export default async function Home() {
       therapists={therapists}
       initialPatients={patients}
       appointments={appointments}
+      accessContext={defaultAccessContext}
     />
   );
 }
