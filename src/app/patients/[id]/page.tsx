@@ -1,5 +1,3 @@
-import { notFound } from "next/navigation";
-
 import { ClinicFlowApp } from "@/components/clinicflow-app";
 import { defaultAccessContext } from "@/lib/clinicflow-access";
 import { getClinicDashboardData } from "@/lib/clinicflow-dashboard";
@@ -17,10 +15,6 @@ export default async function PatientRecordPage({ params }: PatientRecordPagePro
   const { id } = await params;
   const { therapists, patients, appointments, paymentEntries } =
     await getClinicDashboardData();
-
-  if (!patients.some((patient) => patient.id === id)) {
-    notFound();
-  }
 
   return (
     <ClinicFlowApp

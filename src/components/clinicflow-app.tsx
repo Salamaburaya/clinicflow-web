@@ -1121,10 +1121,7 @@ export function ClinicFlowApp({
   }, [hasInitialServerData]);
   const initialPatientPool = bootstrappedClinic?.patients ?? initialPatients;
   const initialSelectedPatientId =
-    (focusedPatientId
-      && initialPatientPool.some((patient) => patient.id === focusedPatientId)
-      ? focusedPatientId
-      : initialPatientPool[0]?.id) ?? "";
+    (focusedPatientId ?? initialPatientPool[0]?.id) ?? "";
   const [currentRole, setCurrentRole] = useState<AppRole>(accessContext.role);
   const visibleSections = useMemo(
     () => getVisibleSections(currentRole),
@@ -1209,11 +1206,13 @@ export function ClinicFlowApp({
       (bootstrappedClinic?.patients ?? initialPatients).map((patient) => [patient.id, patient.status]),
     ),
   );
+  const initialFocusedPatient =
+    initialPatientPool.find((patient) => patient.id === initialSelectedPatientId)
+    ?? initialPatientPool[0];
   const [appointmentForm, setAppointmentForm] = useState<AppointmentForm>({
     ...defaultAppointmentForm,
-    patient_id: bootstrappedClinic?.patients[0]?.id ?? initialPatients[0]?.id ?? "",
-    therapist_id:
-      bootstrappedClinic?.patients[0]?.therapist_id ?? initialPatients[0]?.therapist_id ?? "",
+    patient_id: initialSelectedPatientId,
+    therapist_id: initialFocusedPatient?.therapist_id ?? "",
   });
 
   const therapistNameById = useMemo(
@@ -1235,10 +1234,21 @@ export function ClinicFlowApp({
     return map;
   }, [therapists]);
 
-  const selectedPatient =
-    patients.find((patient) => patient.id === selectedPatientId) ?? patients[0];
   const isPatientsDirectoryMode = displayMode === "patients";
   const isPatientRecordMode = displayMode === "patient-record";
+  const selectedPatient = isPatientRecordMode
+    ? patients.find((patient) => patient.id === selectedPatientId)
+    : patients.find((patient) => patient.id === selectedPatientId) ?? patients[0];
+  const isWaitingForFocusedPatient =
+    isPatientRecordMode
+    && Boolean(focusedPatientId)
+    && !hasHydratedLocalWorkspace
+    && !selectedPatient;
+  const isMissingFocusedPatient =
+    isPatientRecordMode
+    && Boolean(focusedPatientId)
+    && hasHydratedLocalWorkspace
+    && !selectedPatient;
   const selectedPatientIndex = selectedPatient
     ? patients.findIndex((patient) => patient.id === selectedPatient.id)
     : -1;
@@ -3209,117 +3219,152 @@ export function ClinicFlowApp({
 
             {isPatientRecordMode ? (
               <>
-                <div className="card patient-route-toolbar">
-                  <div>
-                    <strong>{selectedPatient?.full_name ?? "תיק מטופל"}</strong>
-                    <div className="item-meta">
-                      עבודה על התיק המלא במסך ייעודי בלי תלות בגלילה של רשימת המטופלים.
+                {isWaitingForFocusedPatient ? (
+                  <article className="card patient-route-state-card">
+                    <div>
+                      <strong>טוען את תיק המטופל...</strong>
+                      <div className="item-meta">
+                        בודק אם התיק קיים בשרת או נשמר מקומית בדפדפן הזה.
+                      </div>
                     </div>
-                  </div>
-                  <div className="patient-route-toolbar-actions">
-                    <Link className="ghost-btn inline-link-btn" href="/patients">
-                      חזרה למאגר המטופלים
-                    </Link>
-                    {previousPatient ? (
-                      <Link
-                        className="secondary-btn"
-                        href={getPatientRecordHref(previousPatient.id)}
-                      >
-                        מטופל קודם
+                    <div className="patient-route-state-actions">
+                      <Link className="ghost-btn inline-link-btn" href="/patients">
+                        חזרה למאגר המטופלים
                       </Link>
-                    ) : null}
-                    {nextPatient ? (
-                      <Link className="secondary-btn" href={getPatientRecordHref(nextPatient.id)}>
-                        מטופל הבא
+                    </div>
+                  </article>
+                ) : isMissingFocusedPatient ? (
+                  <article className="card patient-route-state-card">
+                    <div>
+                      <strong>לא מצאנו כרגע את המטופל הזה</strong>
+                      <div className="item-meta">
+                        ייתכן שזה מטופל שנשמר רק בדפדפן אחר, נמחק, או עדיין לא נכתב לשרת.
+                      </div>
+                    </div>
+                    <div className="patient-route-state-actions">
+                      <Link className="primary-btn" href="/patients">
+                        חזרה למאגר המטופלים
                       </Link>
-                    ) : null}
-                  </div>
-                </div>
+                      <Link className="ghost-btn inline-link-btn" href="/">
+                        חזרה ללוח הבקרה
+                      </Link>
+                    </div>
+                  </article>
+                ) : (
+                  <>
+                    <div className="card patient-route-toolbar">
+                      <div>
+                        <strong>{selectedPatient?.full_name ?? "תיק מטופל"}</strong>
+                        <div className="item-meta">
+                          עבודה על התיק המלא במסך ייעודי בלי תלות בגלילה של רשימת המטופלים.
+                        </div>
+                      </div>
+                      <div className="patient-route-toolbar-actions">
+                        <Link className="ghost-btn inline-link-btn" href="/patients">
+                          חזרה למאגר המטופלים
+                        </Link>
+                        {previousPatient ? (
+                          <Link
+                            className="secondary-btn"
+                            href={getPatientRecordHref(previousPatient.id)}
+                          >
+                            מטופל קודם
+                          </Link>
+                        ) : null}
+                        {nextPatient ? (
+                          <Link className="secondary-btn" href={getPatientRecordHref(nextPatient.id)}>
+                            מטופל הבא
+                          </Link>
+                        ) : null}
+                      </div>
+                    </div>
 
-                <PatientProfileWorkspace
-                  patient={selectedPatient}
-                  appointments={selectedPatientAppointments}
-                  payments={selectedPatientPayments}
-                  journalEntries={journalEntries}
-                  therapistName={
-                    therapistNameById.get(selectedPatient?.therapist_id ?? "") ?? "ללא מטפל"
-                  }
-                  statusDraft={selectedPatient ? statusDrafts[selectedPatient.id] ?? selectedPatient.status : "חדש"}
-                  canManagePatients={patientManagementEnabled}
-                  canManageAppointments={appointmentManagementEnabled}
-                  canEditClinicalNotes={clinicalNotesEnabled}
-                  canManageBilling={billingManagementEnabled}
-                  onStatusDraftChange={(value) => {
-                    if (!selectedPatient) {
-                      return;
-                    }
-                    setStatusDrafts((current) => ({
-                      ...current,
-                      [selectedPatient.id]: value,
-                    }));
-                  }}
-                  onStatusSave={() => {
-                    if (!selectedPatient) {
-                      return;
-                    }
-                    void handleQuickStatusSave(selectedPatient.id);
-                  }}
-                  onOpenJournal={() => {
-                    if (!selectedPatient) {
-                      return;
-                    }
-                    handleSelectPatient(selectedPatient.id);
-                  }}
-                  onCreateAppointment={() => {
-                    if (!selectedPatient) {
-                      return;
-                    }
-                    handleCreateAppointmentForPatient(selectedPatient.id);
-                  }}
-                  onEditPatient={() => {
-                    if (!selectedPatient) {
-                      return;
-                    }
-                    handleEditPatient(selectedPatient);
-                  }}
-                  onAddPayment={({ amount, method, category, note }) => {
-                    if (!selectedPatient) {
-                      return;
-                    }
-                    handleAddPayment({
-                      patientId: selectedPatient.id,
-                      amount,
-                      method,
-                      category,
-                      note,
-                    });
-                  }}
-                  onUpdatePayment={({ paymentId, amount, method, category, note }) => {
-                    if (!selectedPatient) {
-                      return;
-                    }
-                    handleUpdatePayment({
-                      paymentId,
-                      patientId: selectedPatient.id,
-                      amount,
-                      method,
-                      category,
-                      note,
-                    });
-                  }}
-                  onDeletePayment={(paymentId) => {
-                    if (!selectedPatient) {
-                      return;
-                    }
-                    handleDeletePayment({
-                      paymentId,
-                      patientId: selectedPatient.id,
-                    });
-                  }}
-                  formatAppointmentDate={formatAppointmentDate}
-                  formatAppointmentTime={formatAppointmentTime}
-                  formatJournalDate={formatJournalDate}
-                />
+                    <PatientProfileWorkspace
+                      patient={selectedPatient}
+                      appointments={selectedPatientAppointments}
+                      payments={selectedPatientPayments}
+                      journalEntries={journalEntries}
+                      therapistName={
+                        therapistNameById.get(selectedPatient?.therapist_id ?? "") ?? "ללא מטפל"
+                      }
+                      statusDraft={selectedPatient ? statusDrafts[selectedPatient.id] ?? selectedPatient.status : "חדש"}
+                      canManagePatients={patientManagementEnabled}
+                      canManageAppointments={appointmentManagementEnabled}
+                      canEditClinicalNotes={clinicalNotesEnabled}
+                      canManageBilling={billingManagementEnabled}
+                      onStatusDraftChange={(value) => {
+                        if (!selectedPatient) {
+                          return;
+                        }
+                        setStatusDrafts((current) => ({
+                          ...current,
+                          [selectedPatient.id]: value,
+                        }));
+                      }}
+                      onStatusSave={() => {
+                        if (!selectedPatient) {
+                          return;
+                        }
+                        void handleQuickStatusSave(selectedPatient.id);
+                      }}
+                      onOpenJournal={() => {
+                        if (!selectedPatient) {
+                          return;
+                        }
+                        handleSelectPatient(selectedPatient.id);
+                      }}
+                      onCreateAppointment={() => {
+                        if (!selectedPatient) {
+                          return;
+                        }
+                        handleCreateAppointmentForPatient(selectedPatient.id);
+                      }}
+                      onEditPatient={() => {
+                        if (!selectedPatient) {
+                          return;
+                        }
+                        handleEditPatient(selectedPatient);
+                      }}
+                      onAddPayment={({ amount, method, category, note }) => {
+                        if (!selectedPatient) {
+                          return;
+                        }
+                        handleAddPayment({
+                          patientId: selectedPatient.id,
+                          amount,
+                          method,
+                          category,
+                          note,
+                        });
+                      }}
+                      onUpdatePayment={({ paymentId, amount, method, category, note }) => {
+                        if (!selectedPatient) {
+                          return;
+                        }
+                        handleUpdatePayment({
+                          paymentId,
+                          patientId: selectedPatient.id,
+                          amount,
+                          method,
+                          category,
+                          note,
+                        });
+                      }}
+                      onDeletePayment={(paymentId) => {
+                        if (!selectedPatient) {
+                          return;
+                        }
+                        handleDeletePayment({
+                          paymentId,
+                          patientId: selectedPatient.id,
+                        });
+                      }}
+                      formatAppointmentDate={formatAppointmentDate}
+                      formatAppointmentTime={formatAppointmentTime}
+                      formatJournalDate={formatJournalDate}
+                    />
+                  </>
+                )}
               </>
             ) : (
               <>
