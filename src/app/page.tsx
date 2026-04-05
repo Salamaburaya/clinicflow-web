@@ -1,5 +1,6 @@
 import { ClinicFlowApp } from "@/components/clinicflow-app";
 import { defaultAccessContext } from "@/lib/clinicflow-access";
+import { getSupabaseClient } from "@/lib/supabase";
 import { getServerSupabaseClient } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
@@ -269,7 +270,33 @@ function getFallbackClinicData() {
 }
 
 async function getDashboardData() {
-  const supabase = getServerSupabaseClient();
+  let supabase: ReturnType<typeof getServerSupabaseClient> | ReturnType<typeof getSupabaseClient>;
+  const errors: string[] = [];
+
+  try {
+    supabase = getServerSupabaseClient();
+  } catch (error) {
+    errors.push(
+      error instanceof Error
+        ? `server-client:${error.message}`
+        : "server-client:failed",
+    );
+
+    try {
+      supabase = getSupabaseClient();
+    } catch (clientError) {
+      errors.push(
+        clientError instanceof Error
+          ? `public-client:${clientError.message}`
+          : "public-client:failed",
+      );
+
+      return {
+        ...getFallbackClinicData(),
+        errors,
+      };
+    }
+  }
 
   const [therapistsResult, patientsResult, appointmentsResult, paymentEntriesResult] = await Promise.all([
     supabase.from("therapists").select("*").order("created_at", { ascending: true }),
@@ -291,6 +318,7 @@ async function getDashboardData() {
     appointments: (appointmentsResult.data ?? []) as Appointment[],
     paymentEntries: (paymentEntriesResult.data ?? []) as PaymentEntry[],
     errors: [
+      ...errors,
       therapistsResult.error?.message,
       patientsResult.error?.message,
       appointmentsResult.error?.message,
