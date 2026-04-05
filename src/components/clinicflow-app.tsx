@@ -1145,6 +1145,17 @@ export function ClinicFlowApp({
         selectedPatientId?: string;
         statusDrafts?: Record<string, string>;
       };
+      const hasMeaningfulSnapshot =
+        Boolean(snapshot.patients?.length)
+        || Boolean(snapshot.therapists?.length)
+        || Boolean(snapshot.appointments?.length)
+        || Boolean(snapshot.paymentEntries?.length);
+
+      if (!hasMeaningfulSnapshot) {
+        window.localStorage.removeItem(localWorkspaceStateStorageKey);
+        setHasHydratedLocalWorkspace(true);
+        return;
+      }
 
       if (snapshot.therapists) {
         setTherapists(snapshot.therapists);
@@ -1219,9 +1230,8 @@ export function ClinicFlowApp({
   const runDemoSeedIfNeeded = useEffectEvent(() => {
     if (
       hasHydratedLocalWorkspace
-      && !usingLocalWorkspaceSnapshot
-      && initialPatients.length === 0
       && patients.length === 0
+      && therapists.length === 0
       && !isSeedingDemo
     ) {
       void handleLoadDemoData();
@@ -1232,10 +1242,9 @@ export function ClinicFlowApp({
     runDemoSeedIfNeeded();
   }, [
     hasHydratedLocalWorkspace,
-    initialPatients.length,
     isSeedingDemo,
     patients.length,
-    usingLocalWorkspaceSnapshot,
+    therapists.length,
   ]);
 
   useEffect(() => {
