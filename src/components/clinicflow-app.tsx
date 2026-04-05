@@ -13,7 +13,6 @@ import {
 } from "@/lib/clinicflow-access";
 import { normalizeWhatsAppPhone } from "@/lib/phone";
 import { PatientProfileWorkspace } from "@/components/patient-profile-workspace";
-import { getSupabaseClient } from "@/lib/supabase";
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
 
 type Therapist = {
@@ -93,6 +92,7 @@ type ClinicFlowAppProps = {
   therapists: Therapist[];
   initialPatients: Patient[];
   appointments: Appointment[];
+  initialPaymentEntries: PaymentEntry[];
   accessContext: AccessContext;
 };
 
@@ -1089,20 +1089,26 @@ export function ClinicFlowApp({
   therapists: initialTherapists,
   initialPatients,
   appointments: initialAppointments,
+  initialPaymentEntries,
   accessContext,
 }: ClinicFlowAppProps) {
-  const supabase = useMemo(() => getSupabaseClient(), []);
   const bootstrappedClinic = useMemo(() => {
     if (
       initialTherapists.length > 0
       || initialPatients.length > 0
       || initialAppointments.length > 0
+      || initialPaymentEntries.length > 0
     ) {
       return null;
     }
 
     return buildLocalClinicSeed();
-  }, [initialAppointments.length, initialPatients.length, initialTherapists.length]);
+  }, [
+    initialAppointments.length,
+    initialPatients.length,
+    initialPaymentEntries.length,
+    initialTherapists.length,
+  ]);
   const [currentRole, setCurrentRole] = useState<AppRole>(accessContext.role);
   const visibleSections = useMemo(
     () => getVisibleSections(currentRole),
@@ -1121,7 +1127,7 @@ export function ClinicFlowApp({
     () => bootstrappedClinic?.appointments ?? initialAppointments,
   );
   const [paymentEntries, setPaymentEntries] = useState<PaymentEntry[]>(
-    () => bootstrappedClinic?.paymentEntries ?? [],
+    () => bootstrappedClinic?.paymentEntries ?? initialPaymentEntries,
   );
   const [search, setSearch] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState(
@@ -1496,11 +1502,12 @@ export function ClinicFlowApp({
       return;
     }
     setAppointments(bootstrappedClinic?.appointments ?? initialAppointments);
-    setPaymentEntries(bootstrappedClinic?.paymentEntries ?? []);
+    setPaymentEntries(bootstrappedClinic?.paymentEntries ?? initialPaymentEntries);
   }, [
     bootstrappedClinic,
     hasHydratedLocalWorkspace,
     initialAppointments,
+    initialPaymentEntries,
     usingLocalWorkspaceSnapshot,
   ]);
 
@@ -1594,29 +1601,62 @@ export function ClinicFlowApp({
     }
 
     const loadEntries = async () => {
-      const { data, error } = await supabase
-        .from("journal_entries")
-        .select("*")
-        .eq("patient_id", selectedPatient.id)
-        .order("entry_date", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(6);
+      try {
+        const response = await fetch(
+          `/api/clinicflow/patient-record?patientId=${encodeURIComponent(selectedPatient.id)}`,
+        );
 
-      if (error) {
-        setJournalSaveStatus("לא ניתן לטעון את היסטוריית היומן כרגע");
+        if (!response.ok) {
+          setJournalSaveStatus("לא ניתן לטעון את תיק המטופל מהשרת כרגע");
+          return;
+        }
+
+        const result = (await response.json()) as {
+          ok?: boolean;
+          journalEntries?: JournalEntry[];
+          paymentEntries?: PaymentEntry[];
+          errors?: {
+            journalEntries?: string | null;
+            paymentEntries?: string | null;
+          };
+        };
+
+        if (!result.ok) {
+          setJournalSaveStatus("לא ניתן לטעון את תיק המטופל מהשרת כרגע");
+          return;
+        }
+
+        if (result.errors?.journalEntries) {
+          setJournalSaveStatus("לא ניתן לטעון את היסטוריית היומן כרגע");
+        } else {
+          setJournalEntries(result.journalEntries ?? []);
+        }
+
+        if (result.paymentEntries) {
+          setPaymentEntries((current) => {
+            const otherPatientsEntries = current.filter(
+              (entry) => entry.patient_id !== selectedPatient.id,
+            );
+
+            return [...result.paymentEntries!, ...otherPatientsEntries].sort(
+              (a, b) =>
+                new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime(),
+            );
+          });
+        }
+      } catch {
+        setJournalSaveStatus("לא ניתן לטעון את תיק המטופל מהשרת כרגע");
         return;
       }
-
-      setJournalEntries((data ?? []) as JournalEntry[]);
     };
 
     void loadEntries();
   }, [
     bootstrappedClinic,
+    initialPaymentEntries.length,
     initialPatients.length,
     selectedPatient,
     selectedPatientId,
-    supabase,
     usingLocalWorkspaceSnapshot,
   ]);
 
@@ -2576,7 +2616,7 @@ export function ClinicFlowApp({
     }));
   }
 
-  function handleAddPayment({ patientId, amount, method, category, note }: AddPaymentInput) {
+  async function handleAddPayment({ patientId, amount, method, category, note }: AddPaymentInput) {
     const normalizedAmount = Number(amount);
 
     if (!patientId || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
@@ -2584,6 +2624,17 @@ export function ClinicFlowApp({
     }
 
     const now = new Date().toISOString();
+    const { data: mutationResult, error } = await runClinicMutation<{
+      paymentEntry: PaymentEntry;
+      patient: Patient;
+    }>({
+      action: "savePayment",
+      patientId,
+      amount: normalizedAmount,
+      method,
+      category,
+      note,
+    });
 
     const nextEntry: PaymentEntry = {
       id: crypto.randomUUID(),
@@ -2596,14 +2647,17 @@ export function ClinicFlowApp({
       category,
       note: note.trim() || null,
     };
-
-    const nextPaymentEntries = [nextEntry, ...paymentEntries];
+    const savedPaymentEntry = mutationResult?.paymentEntry ?? nextEntry;
+    const savedPatient = mutationResult?.patient;
+    const nextPaymentEntries = [savedPaymentEntry, ...paymentEntries.filter((entry) => entry.id !== savedPaymentEntry.id)];
     const nextPatients = patients.map((patient) =>
       patient.id === patientId
-        ? {
-            ...patient,
-            payment_balance: (patient.payment_balance ?? 0) - normalizedAmount,
-          }
+        ? savedPatient
+          ? savedPatient
+          : {
+              ...patient,
+              payment_balance: (patient.payment_balance ?? 0) - normalizedAmount,
+            }
         : patient,
     );
 
@@ -2614,12 +2668,18 @@ export function ClinicFlowApp({
       patients: nextPatients,
       appointments,
       paymentEntries: nextPaymentEntries,
+      journalEntries,
       selectedPatientId,
       statusDrafts,
     });
+    setDeleteStatus(
+      error
+        ? "התשלום נשמר מקומית. שמירת השרת לא הושלמה כרגע."
+        : "התשלום נשמר בהצלחה",
+    );
   }
 
-  function handleUpdatePayment({
+  async function handleUpdatePayment({
     paymentId,
     patientId,
     amount,
@@ -2639,9 +2699,23 @@ export function ClinicFlowApp({
       return;
     }
 
+    const { data: mutationResult, error } = await runClinicMutation<{
+      paymentEntry: PaymentEntry;
+      patient: Patient;
+    }>({
+      action: "updatePayment",
+      paymentId,
+      patientId,
+      amount: normalizedAmount,
+      method,
+      category,
+      note,
+    });
+
+    const nextPaymentEntry = mutationResult?.paymentEntry;
     const nextPaymentEntries = paymentEntries.map((entry) =>
       entry.id === paymentId
-        ? {
+        ? nextPaymentEntry ?? {
             ...entry,
             amount: normalizedAmount,
             method,
@@ -2654,7 +2728,7 @@ export function ClinicFlowApp({
     const delta = normalizedAmount - existingPayment.amount;
     const nextPatients = patients.map((patient) =>
       patient.id === patientId
-        ? {
+        ? mutationResult?.patient ?? {
             ...patient,
             payment_balance: delta === 0
               ? patient.payment_balance ?? 0
@@ -2670,12 +2744,18 @@ export function ClinicFlowApp({
       patients: nextPatients,
       appointments,
       paymentEntries: nextPaymentEntries,
+      journalEntries,
       selectedPatientId,
       statusDrafts,
     });
+    setDeleteStatus(
+      error
+        ? "עדכון התשלום נשמר מקומית. שמירת השרת לא הושלמה כרגע."
+        : "התשלום עודכן בהצלחה",
+    );
   }
 
-  function handleDeletePayment({ paymentId, patientId }: DeletePaymentInput) {
+  async function handleDeletePayment({ paymentId, patientId }: DeletePaymentInput) {
     if (!paymentId || !patientId) {
       return;
     }
@@ -2686,10 +2766,18 @@ export function ClinicFlowApp({
       return;
     }
 
+    const { data: mutationResult, error } = await runClinicMutation<{
+      patient: Patient;
+    }>({
+      action: "deletePayment",
+      paymentId,
+      patientId,
+    });
+
     const nextPaymentEntries = paymentEntries.filter((entry) => entry.id !== paymentId);
     const nextPatients = patients.map((patient) =>
       patient.id === patientId
-        ? {
+        ? mutationResult?.patient ?? {
             ...patient,
             payment_balance: (patient.payment_balance ?? 0) + existingPayment.amount,
           }
@@ -2703,9 +2791,15 @@ export function ClinicFlowApp({
       patients: nextPatients,
       appointments,
       paymentEntries: nextPaymentEntries,
+      journalEntries,
       selectedPatientId,
       statusDrafts,
     });
+    setDeleteStatus(
+      error
+        ? "מחיקת התשלום נשמרה מקומית. שמירת השרת לא הושלמה כרגע."
+        : "התשלום נמחק בהצלחה",
+    );
   }
 
   function handleJournalTemplateAnswerChange(fieldKey: string, value: string) {

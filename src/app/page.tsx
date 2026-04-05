@@ -1,6 +1,6 @@
 import { ClinicFlowApp } from "@/components/clinicflow-app";
 import { defaultAccessContext } from "@/lib/clinicflow-access";
-import { getSupabaseClient } from "@/lib/supabase";
+import { getServerSupabaseClient } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -52,6 +52,18 @@ type Appointment = {
   appointment_at: string;
   patient_id: string;
   therapist_id: string | null;
+};
+
+type PaymentEntry = {
+  id: string;
+  patient_id: string;
+  created_at: string;
+  payment_date: string;
+  amount: number;
+  method: string;
+  status: "completed" | "pending" | "refunded";
+  category: string;
+  note: string | null;
 };
 
 function createSeedAppointment(daysOffset: number, hour: number, minute: number) {
@@ -217,29 +229,72 @@ function getFallbackClinicData() {
     },
   ];
 
-  return { therapists, patients, appointments };
+  const paymentEntries: PaymentEntry[] = [
+    {
+      id: "seed-payment-1",
+      patient_id: "seed-patient-noa",
+      created_at: createSeedAppointment(-10, 12, 0),
+      payment_date: createSeedAppointment(-10, 12, 0),
+      amount: 180,
+      method: "אשראי",
+      status: "completed",
+      category: "מפגש טיפול",
+      note: "תשלום על מפגש המשך",
+    },
+    {
+      id: "seed-payment-2",
+      patient_id: "seed-patient-razi",
+      created_at: createSeedAppointment(-7, 12, 0),
+      payment_date: createSeedAppointment(-7, 12, 0),
+      amount: 120,
+      method: "ביט",
+      status: "completed",
+      category: "מפגש טיפול",
+      note: "שולם במקום",
+    },
+    {
+      id: "seed-payment-3",
+      patient_id: "seed-patient-mira",
+      created_at: createSeedAppointment(-4, 12, 0),
+      payment_date: createSeedAppointment(-4, 12, 0),
+      amount: 180,
+      method: "העברה",
+      status: "completed",
+      category: "חבילת טיפולים",
+      note: "תשלום עבור חבילת מפגשים",
+    },
+  ];
+
+  return { therapists, patients, appointments, paymentEntries };
 }
 
 async function getDashboardData() {
-  const supabase = getSupabaseClient();
+  const supabase = getServerSupabaseClient();
 
-  const [therapistsResult, patientsResult, appointmentsResult] = await Promise.all([
+  const [therapistsResult, patientsResult, appointmentsResult, paymentEntriesResult] = await Promise.all([
     supabase.from("therapists").select("*").order("created_at", { ascending: true }),
     supabase.from("patients").select("*").order("created_at", { ascending: false }),
     supabase
       .from("appointments")
       .select("*")
       .order("appointment_at", { ascending: true }),
+    supabase
+      .from("payment_entries")
+      .select("*")
+      .order("payment_date", { ascending: false })
+      .order("created_at", { ascending: false }),
   ]);
 
   const result = {
     therapists: (therapistsResult.data ?? []) as Therapist[],
     patients: (patientsResult.data ?? []) as Patient[],
     appointments: (appointmentsResult.data ?? []) as Appointment[],
+    paymentEntries: (paymentEntriesResult.data ?? []) as PaymentEntry[],
     errors: [
       therapistsResult.error?.message,
       patientsResult.error?.message,
       appointmentsResult.error?.message,
+      paymentEntriesResult.error?.message,
     ].filter(Boolean) as string[],
   };
 
@@ -247,6 +302,7 @@ async function getDashboardData() {
     result.therapists.length === 0
     && result.patients.length === 0
     && result.appointments.length === 0
+    && result.paymentEntries.length === 0
   ) {
     return {
       ...getFallbackClinicData(),
@@ -258,13 +314,14 @@ async function getDashboardData() {
 }
 
 export default async function Home() {
-  const { therapists, patients, appointments } = await getDashboardData();
+  const { therapists, patients, appointments, paymentEntries } = await getDashboardData();
 
   return (
     <ClinicFlowApp
       therapists={therapists}
       initialPatients={patients}
       appointments={appointments}
+      initialPaymentEntries={paymentEntries}
       accessContext={defaultAccessContext}
     />
   );
