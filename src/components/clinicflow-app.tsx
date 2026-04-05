@@ -141,6 +141,15 @@ type AddPaymentInput = {
   note: string;
 };
 
+type UpdatePaymentInput = {
+  paymentId: string;
+  patientId: string;
+  amount: number;
+  method: string;
+  category: string;
+  note: string;
+};
+
 type ReminderKind = "confirmation" | "24h" | "1h";
 
 type ReminderNotice = {
@@ -1926,6 +1935,58 @@ export function ClinicFlowApp({
     );
   }
 
+  function handleUpdatePayment({
+    paymentId,
+    patientId,
+    amount,
+    method,
+    category,
+    note,
+  }: UpdatePaymentInput) {
+    const normalizedAmount = Number(amount);
+
+    if (!paymentId || !patientId || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+      return;
+    }
+
+    const existingPayment = paymentEntries.find((entry) => entry.id === paymentId);
+
+    if (!existingPayment) {
+      return;
+    }
+
+    setPaymentEntries((current) =>
+      current.map((entry) =>
+        entry.id === paymentId
+          ? {
+              ...entry,
+              amount: normalizedAmount,
+              method,
+              category,
+              note: note.trim() || null,
+            }
+          : entry,
+      ),
+    );
+
+    const delta = normalizedAmount - existingPayment.amount;
+
+    if (delta === 0) {
+      return;
+    }
+
+    setPatients((current) =>
+      current.map((patient) =>
+        patient.id === patientId
+          ? {
+              ...patient,
+              payment_balance: (patient.payment_balance ?? 0) - delta,
+            }
+          : patient,
+      ),
+    );
+  }
+
   function handleJournalTemplateAnswerChange(fieldKey: string, value: string) {
     setJournalForm((current) => ({
       ...current,
@@ -2307,6 +2368,19 @@ export function ClinicFlowApp({
                   return;
                 }
                 handleAddPayment({
+                  patientId: selectedPatient.id,
+                  amount,
+                  method,
+                  category,
+                  note,
+                });
+              }}
+              onUpdatePayment={({ paymentId, amount, method, category, note }) => {
+                if (!selectedPatient) {
+                  return;
+                }
+                handleUpdatePayment({
+                  paymentId,
                   patientId: selectedPatient.id,
                   amount,
                   method,

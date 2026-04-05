@@ -753,6 +753,13 @@ button, input, select, textarea { font: inherit; }
   gap: 12px;
 }
 
+.workspace-payment-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .workspace-note-callout {
   padding: 14px;
   border-radius: 18px;

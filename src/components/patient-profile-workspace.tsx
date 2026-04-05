@@ -86,6 +86,13 @@ type PatientProfileWorkspaceProps = {
     category: string;
     note: string;
   }) => void;
+  onUpdatePayment: (input: {
+    paymentId: string;
+    amount: number;
+    method: string;
+    category: string;
+    note: string;
+  }) => void;
   formatAppointmentDate: (value: string) => string;
   formatAppointmentTime: (value: string) => string;
   formatJournalDate: (value: string) => string;
@@ -154,11 +161,13 @@ export function PatientProfileWorkspace({
   onOpenJournal,
   onCreateAppointment,
   onAddPayment,
+  onUpdatePayment,
   formatAppointmentDate,
   formatAppointmentTime,
   formatJournalDate,
 }: PatientProfileWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("overview");
+  const [editingPaymentId, setEditingPaymentId] = useState("");
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
     method: "אשראי",
@@ -182,6 +191,16 @@ export function PatientProfileWorkspace({
   const patientAge = getPatientAge(patient.birth_date);
   const paymentBalance = patient.payment_balance ?? 0;
   const latestPayment = payments[0];
+
+  function resetPaymentForm() {
+    setEditingPaymentId("");
+    setPaymentForm({
+      amount: "",
+      method: "אשראי",
+      category: "מפגש טיפול",
+      note: "",
+    });
+  }
 
   const overviewItems = [
     {
@@ -556,7 +575,28 @@ export function PatientProfileWorkspace({
                         <td>{payment.method}</td>
                         <td>{payment.status}</td>
                         <td>{formatCurrency(payment.amount)}</td>
-                        <td>{payment.note ?? "ללא הערה"}</td>
+                        <td>
+                          <div className="workspace-payment-cell">
+                            <span>{payment.note ?? "ללא הערה"}</span>
+                            {canManageBilling ? (
+                              <button
+                                className="ghost-btn"
+                                type="button"
+                                onClick={() => {
+                                  setEditingPaymentId(payment.id);
+                                  setPaymentForm({
+                                    amount: String(payment.amount),
+                                    method: payment.method,
+                                    category: payment.category,
+                                    note: payment.note ?? "",
+                                  });
+                                }}
+                              >
+                                עריכה
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
                       </tr>
                     ))}
                     {payments.length === 0 ? (
@@ -579,18 +619,21 @@ export function PatientProfileWorkspace({
                   className="workspace-payment-form"
                   onSubmit={(event) => {
                     event.preventDefault();
-                    onAddPayment({
+                    const payload = {
                       amount: Number(paymentForm.amount),
                       method: paymentForm.method,
                       category: paymentForm.category,
                       note: paymentForm.note,
-                    });
-                    setPaymentForm({
-                      amount: "",
-                      method: paymentForm.method,
-                      category: "מפגש טיפול",
-                      note: "",
-                    });
+                    };
+                    if (editingPaymentId) {
+                      onUpdatePayment({
+                        paymentId: editingPaymentId,
+                        ...payload,
+                      });
+                    } else {
+                      onAddPayment(payload);
+                    }
+                    resetPaymentForm();
                   }}
                 >
                   <label className="inline-field">
@@ -659,8 +702,17 @@ export function PatientProfileWorkspace({
                     />
                   </label>
                   <button className="primary-btn" type="submit">
-                    הוספת תשלום
+                    {editingPaymentId ? "שמירת תיקון" : "הוספת תשלום"}
                   </button>
+                  {editingPaymentId ? (
+                    <button
+                      className="secondary-btn"
+                      type="button"
+                      onClick={resetPaymentForm}
+                    >
+                      ביטול עריכה
+                    </button>
+                  ) : null}
                 </form>
               ) : (
                 <div className="empty-card">
