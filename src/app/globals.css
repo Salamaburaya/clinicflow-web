@@ -1053,11 +1053,42 @@ button, input, select, textarea { font: inherit; }
     padding: 14px;
   }
 
+  .page-shell-patient-record {
+    padding-inline: 8px;
+  }
+
   .content,
   .content-patients,
   .content-patient-record {
     width: 100%;
     max-width: 100%;
+  }
+
+  .page-shell-patient-record .content-patient-record {
+    width: 113.64% !important;
+    max-width: none !important;
+    margin-inline: 0;
+    transform: scale(0.88);
+    transform-origin: top right;
+  }
+
+  .page-shell-patient-record .topbar,
+  .page-shell-patient-record .patient-route-toolbar,
+  .page-shell-patient-record .patient-route-state-card,
+  .page-shell-patient-record .patient-workspace-card,
+  .page-shell-patient-record .workspace-panel-card,
+  .page-shell-patient-record .workspace-mobile-card {
+    overflow: hidden;
+  }
+
+  .page-shell-patient-record .patient-tabs,
+  .page-shell-patient-record .patient-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .page-shell-patient-record .patient-workspace-header {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .workspace-desktop-only {
@@ -1085,6 +1116,10 @@ button, input, select, textarea { font: inherit; }
 
 @media (max-width: 720px) {
   .content { overflow-x: clip; }
+  .page-shell-patient-record .content-patient-record {
+    width: 121.96% !important;
+    transform: scale(0.82);
+  }
   .topbar {
     top: 8px;
     padding: 8px;
