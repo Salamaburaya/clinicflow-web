@@ -88,6 +88,23 @@ function isUuid(value: string) {
   );
 }
 
+function buildTherapistServerPayload(payload: Record<string, unknown>) {
+  return {
+    full_name:
+      typeof payload.full_name === "string" ? payload.full_name.trim() : "",
+    profession:
+      typeof payload.profession === "string" ? payload.profession.trim() : "",
+    specialty:
+      typeof payload.specialty === "string" && payload.specialty.trim().length > 0
+        ? payload.specialty.trim()
+        : null,
+    phone:
+      typeof payload.phone === "string" && payload.phone.trim().length > 0
+        ? payload.phone.trim()
+        : null,
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as MutationRequest;
@@ -249,14 +266,15 @@ export async function POST(request: Request) {
       }
 
       case "saveTherapist": {
+        const payload = buildTherapistServerPayload(body.payload);
         const query = body.editingTherapistId
           ? supabase
               .from("therapists")
-              .update(body.payload)
+              .update(payload)
               .eq("id", body.editingTherapistId)
               .select("*")
               .single()
-          : supabase.from("therapists").insert(body.payload).select("*").single();
+          : supabase.from("therapists").insert(payload).select("*").single();
 
         const { data, error } = await query;
 
