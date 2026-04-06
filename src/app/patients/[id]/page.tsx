@@ -1,6 +1,6 @@
 import { ClinicFlowApp } from "@/components/clinicflow-app";
 import { defaultAccessContext } from "@/lib/clinicflow-access";
-import { getClinicDashboardData } from "@/lib/clinicflow-dashboard";
+import { getClinicDashboardData, resolvePatientIdFromKnownData } from "@/lib/clinicflow-dashboard";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,6 +15,7 @@ export default async function PatientRecordPage({ params }: PatientRecordPagePro
   const { id } = await params;
   const { therapists, patients, appointments, paymentEntries } =
     await getClinicDashboardData();
+  const resolvedFocusedPatientId = resolvePatientIdFromKnownData(id, patients);
 
   return (
     <ClinicFlowApp
@@ -25,7 +26,7 @@ export default async function PatientRecordPage({ params }: PatientRecordPagePro
       accessContext={defaultAccessContext}
       initialSection="patients"
       displayMode="patient-record"
-      focusedPatientId={id}
+      focusedPatientId={resolvedFocusedPatientId}
     />
   );
 }

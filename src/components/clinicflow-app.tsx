@@ -14,7 +14,7 @@ import {
 } from "@/lib/clinicflow-access";
 import { normalizeWhatsAppPhone } from "@/lib/phone";
 import { PatientProfileWorkspace } from "@/components/patient-profile-workspace";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Therapist = {
   id: string;
@@ -621,6 +621,74 @@ function buildWhatsAppUrl(phone?: string | null, message?: string) {
   return `https://api.whatsapp.com/send?phone=${normalizedPhone}${text ? `&text=${text}` : ""}`;
 }
 
+function mergePatientIntoCollection(
+  currentPatients: Patient[],
+  nextPatient: Patient,
+  aliases: string[] = [],
+) {
+  const knownIds = new Set([nextPatient.id, ...aliases].filter(Boolean));
+  let wasReplaced = false;
+
+  const mergedPatients = currentPatients.map((patient) => {
+    const isMatch =
+      knownIds.has(patient.id) || patient.full_name === nextPatient.full_name;
+
+    if (!isMatch) {
+      return patient;
+    }
+
+    wasReplaced = true;
+
+    return {
+      ...patient,
+      ...nextPatient,
+      payment_balance:
+        typeof nextPatient.payment_balance === "number"
+          ? nextPatient.payment_balance
+          : (typeof patient.payment_balance === "number" ? patient.payment_balance : 0),
+    };
+  });
+
+  return wasReplaced ? mergedPatients : [nextPatient, ...currentPatients];
+}
+
+function sortPaymentEntries(items: PaymentEntry[]) {
+  return [...items].sort(
+    (left, right) =>
+      new Date(right.payment_date).getTime() - new Date(left.payment_date).getTime(),
+  );
+}
+
+function replacePatientPaymentEntries(
+  currentEntries: PaymentEntry[],
+  nextEntries: PaymentEntry[],
+  aliases: string[] = [],
+) {
+  const patientIds = new Set(
+    [...aliases, ...nextEntries.map((entry) => entry.patient_id)].filter(Boolean),
+  );
+  const nextEntryIds = new Set(nextEntries.map((entry) => entry.id));
+
+  return sortPaymentEntries([
+    ...currentEntries.filter(
+      (entry) => !patientIds.has(entry.patient_id) && !nextEntryIds.has(entry.id),
+    ),
+    ...nextEntries,
+  ]);
+}
+
+function resolveSelectedPatientIdentity(
+  currentPatientId: string,
+  nextPatient: Patient,
+  aliases: string[] = [],
+) {
+  const knownPatientIds = new Set(
+    [nextPatient.id, nextPatient.full_name, ...aliases].filter(Boolean),
+  );
+
+  return knownPatientIds.has(currentPatientId) ? nextPatient.id : currentPatientId;
+}
+
 export function ClinicFlowApp({
   therapists: initialTherapists,
   initialPatients,
@@ -676,7 +744,8 @@ export function ClinicFlowApp({
   const [selectedPatientId, setSelectedPatientId] = useState(
     initialSelectedPatientId,
   );
-  const effectiveSelectedPatientId = focusedPatientId ?? selectedPatientId;
+  const previousFocusedPatientIdRef = useRef(focusedPatientId);
+  const effectiveSelectedPatientId = selectedPatientId || focusedPatientId || "";
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [showPatientDialog, setShowPatientDialog] = useState(false);
   const [showJournalDialog, setShowJournalDialog] = useState(false);
@@ -717,11 +786,13 @@ export function ClinicFlowApp({
   const [therapistSaveStatus, setTherapistSaveStatus] = useState("");
   const [journalSaveStatus, setJournalSaveStatus] = useState("");
   const [appointmentSaveStatus, setAppointmentSaveStatus] = useState("");
+  const [billingSaveStatus, setBillingSaveStatus] = useState("");
   const [deleteStatus, setDeleteStatus] = useState("");
   const [isAddingPatient, setIsAddingPatient] = useState(false);
   const [isAddingTherapist, setIsAddingTherapist] = useState(false);
   const [isSavingJournal, setIsSavingJournal] = useState(false);
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
+  const [isSavingBilling, setIsSavingBilling] = useState(false);
   const [editingAppointmentId, setEditingAppointmentId] = useState("");
   const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>(
     Object.fromEntries(
@@ -758,6 +829,18 @@ export function ClinicFlowApp({
 
   const isPatientsDirectoryMode = displayMode === "patients";
   const isPatientRecordMode = displayMode === "patient-record";
+
+  useEffect(() => {
+    if (!focusedPatientId) {
+      return;
+    }
+
+    if (previousFocusedPatientIdRef.current !== focusedPatientId) {
+      previousFocusedPatientIdRef.current = focusedPatientId;
+      setSelectedPatientId(focusedPatientId);
+    }
+  }, [focusedPatientId]);
+
   const selectedPatient = isPatientRecordMode
     ? patients.find((patient) => patient.id === effectiveSelectedPatientId)
     : patients.find((patient) => patient.id === effectiveSelectedPatientId) ?? patients[0];
@@ -801,12 +884,9 @@ export function ClinicFlowApp({
   const selectedPatientAppointments = appointments.filter(
     (appointment) => appointment.patient_id === selectedPatient?.id,
   );
-  const selectedPatientPayments = paymentEntries
-    .filter((entry) => entry.patient_id === selectedPatient?.id)
-    .sort(
-      (a, b) =>
-        new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime(),
-    );
+  const selectedPatientPayments = sortPaymentEntries(
+    paymentEntries.filter((entry) => entry.patient_id === selectedPatient?.id),
+  );
   const nextAppointmentForSelectedPatient = selectedPatientAppointments[0];
   const selectedPatientReadiness = selectedPatient
     ? [
@@ -965,65 +1045,83 @@ export function ClinicFlowApp({
     persistReminderNoticesToStorage(reminderNotices);
   }, [reminderNotices]);
 
+  const refreshPatientRecord = useCallback(async (requestedPatientId: string, aliases: string[] = []) => {
+    try {
+      const response = await fetch(
+        `/api/clinicflow/patient-record?patientId=${encodeURIComponent(requestedPatientId)}`,
+      );
+
+      if (!response.ok) {
+        setJournalSaveStatus("לא ניתן לטעון את תיק המטופל מהשרת כרגע");
+        return false;
+      }
+
+      const result = (await response.json()) as {
+        ok?: boolean;
+        patient?: Patient | null;
+        journalEntries?: JournalEntry[];
+        paymentEntries?: PaymentEntry[];
+        errors?: {
+          journalEntries?: string | null;
+          paymentEntries?: string | null;
+        };
+      };
+
+      if (!result.ok) {
+        setJournalSaveStatus("לא ניתן לטעון את תיק המטופל מהשרת כרגע");
+        return false;
+      }
+
+      if (result.errors?.journalEntries) {
+        setJournalSaveStatus("לא ניתן לטעון את היסטוריית היומן כרגע");
+      } else {
+        setJournalEntries(result.journalEntries ?? []);
+      }
+
+      const patientAliases = [requestedPatientId, ...aliases];
+      const resolvedPatientId = result.patient?.id ?? requestedPatientId;
+
+      if (result.patient) {
+        setPatients((current) =>
+          mergePatientIntoCollection(current, result.patient!, patientAliases),
+        );
+
+        setStatusDrafts((current) => ({
+          ...current,
+          [result.patient!.id]: result.patient!.status,
+        }));
+
+        setSelectedPatientId((current) =>
+          resolveSelectedPatientIdentity(current, result.patient!, patientAliases),
+        );
+      }
+
+      if (result.paymentEntries) {
+        setPaymentEntries((current) =>
+          replacePatientPaymentEntries(
+            current,
+            result.paymentEntries!,
+            [resolvedPatientId, ...patientAliases],
+          ),
+        );
+      }
+
+      return true;
+    } catch {
+      setJournalSaveStatus("לא ניתן לטעון את תיק המטופל מהשרת כרגע");
+      return false;
+    }
+  }, []);
+
   useEffect(() => {
-    if (!selectedPatient) {
+    const patientId = selectedPatient?.id;
+
+    if (!patientId) {
       return;
     }
 
-    const patientId = selectedPatient.id;
-
-    const loadEntries = async () => {
-      try {
-        const response = await fetch(
-          `/api/clinicflow/patient-record?patientId=${encodeURIComponent(patientId)}`,
-        );
-
-        if (!response.ok) {
-          setJournalSaveStatus("לא ניתן לטעון את תיק המטופל מהשרת כרגע");
-          return;
-        }
-
-        const result = (await response.json()) as {
-          ok?: boolean;
-          journalEntries?: JournalEntry[];
-          paymentEntries?: PaymentEntry[];
-          errors?: {
-            journalEntries?: string | null;
-            paymentEntries?: string | null;
-          };
-        };
-
-        if (!result.ok) {
-          setJournalSaveStatus("לא ניתן לטעון את תיק המטופל מהשרת כרגע");
-          return;
-        }
-
-        if (result.errors?.journalEntries) {
-          setJournalSaveStatus("לא ניתן לטעון את היסטוריית היומן כרגע");
-        } else {
-          setJournalEntries(result.journalEntries ?? []);
-        }
-
-        if (result.paymentEntries) {
-          setPaymentEntries((current) => {
-            const otherPatientsEntries = current.filter(
-              (entry) => entry.patient_id !== patientId,
-            );
-
-            return [...result.paymentEntries!, ...otherPatientsEntries].sort(
-              (a, b) =>
-                new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime(),
-            );
-          });
-        }
-      } catch {
-        setJournalSaveStatus("לא ניתן לטעון את תיק המטופל מהשרת כרגע");
-        return;
-      }
-    };
-
-    void loadEntries();
-  }, [selectedPatient]);
+    void refreshPatientRecord(patientId);
+  }, [refreshPatientRecord, selectedPatient?.id]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1598,6 +1696,7 @@ export function ClinicFlowApp({
   function handleSelectPatient(patientId: string) {
     const patient = patients.find((item) => item.id === patientId);
     setSelectedPatientId(patientId);
+    setBillingSaveStatus("");
     setJournalForm(buildJournalForm(patient));
     setAppointmentForm((current) => ({
       ...current,
@@ -1611,6 +1710,7 @@ export function ClinicFlowApp({
   function handleFocusPatient(patientId: string) {
     const patient = patients.find((item) => item.id === patientId);
     setSelectedPatientId(patientId);
+    setBillingSaveStatus("");
     setJournalForm(buildJournalForm(patient));
     setAppointmentForm((current) => ({
       ...current,
@@ -1623,6 +1723,7 @@ export function ClinicFlowApp({
   function handleCreateAppointmentForPatient(patientId: string) {
     const patient = patients.find((item) => item.id === patientId);
     setSelectedPatientId(patientId);
+    setBillingSaveStatus("");
     setEditingAppointmentId("");
     setAppointmentForm({
       ...defaultAppointmentForm,
@@ -1732,8 +1833,12 @@ export function ClinicFlowApp({
     const normalizedAmount = Number(amount);
 
     if (!patientId || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
-      return;
+      setBillingSaveStatus("צריך להזין סכום תקין לפני שמירת תשלום.");
+      return false;
     }
+
+    setIsSavingBilling(true);
+    setBillingSaveStatus("");
 
     const { data: mutationResult, error } = await runClinicMutation<{
       paymentEntry: PaymentEntry;
@@ -1750,19 +1855,31 @@ export function ClinicFlowApp({
     const savedPatient = mutationResult?.patient;
     if (error || !savedPaymentEntry || !savedPatient) {
       setDeleteStatus("לא ניתן לשמור את התשלום כרגע. התשלום לא נשמר בשרת.");
-      return;
+      setBillingSaveStatus("לא ניתן לשמור את התשלום כרגע. נסה שוב בעוד רגע.");
+      setIsSavingBilling(false);
+      return false;
     }
 
-    const nextPaymentEntries = [savedPaymentEntry, ...paymentEntries.filter((entry) => entry.id !== savedPaymentEntry.id)];
-    const nextPatients = patients.map((patient) =>
-      patient.id === patientId
-        ? savedPatient
-        : patient,
-    );
+    const paymentAliases = [patientId, savedPatient.id];
+    const nextPatientPayments = sortPaymentEntries([
+      savedPaymentEntry,
+      ...paymentEntries.filter((entry) =>
+        paymentAliases.includes(entry.patient_id) && entry.id !== savedPaymentEntry.id
+      ),
+    ]);
 
-    setPaymentEntries(nextPaymentEntries);
-    setPatients(nextPatients);
+    setPaymentEntries((current) =>
+      replacePatientPaymentEntries(current, nextPatientPayments, paymentAliases),
+    );
+    setPatients((current) => mergePatientIntoCollection(current, savedPatient, paymentAliases));
+    setSelectedPatientId((current) =>
+      resolveSelectedPatientIdentity(current, savedPatient, paymentAliases),
+    );
     setDeleteStatus("התשלום נשמר בהצלחה");
+    setBillingSaveStatus("התשלום נשמר בהצלחה.");
+    setIsSavingBilling(false);
+    void refreshPatientRecord(savedPatient.id, paymentAliases);
+    return true;
   }
 
   async function handleUpdatePayment({
@@ -1776,14 +1893,19 @@ export function ClinicFlowApp({
     const normalizedAmount = Number(amount);
 
     if (!paymentId || !patientId || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
-      return;
+      setBillingSaveStatus("צריך להזין סכום תקין לפני שמירת השינויים.");
+      return false;
     }
 
     const existingPayment = paymentEntries.find((entry) => entry.id === paymentId);
 
     if (!existingPayment) {
-      return;
+      setBillingSaveStatus("לא נמצאה רשומת תשלום לעדכון.");
+      return false;
     }
+
+    setIsSavingBilling(true);
+    setBillingSaveStatus("");
 
     const { data: mutationResult, error } = await runClinicMutation<{
       paymentEntry: PaymentEntry;
@@ -1801,36 +1923,49 @@ export function ClinicFlowApp({
     const updatedPatient = mutationResult?.patient;
     if (error || !nextPaymentEntry || !updatedPatient) {
       setDeleteStatus("לא ניתן לעדכן את התשלום כרגע. השינוי לא נשמר בשרת.");
-      return;
+      setBillingSaveStatus("לא ניתן לעדכן את התשלום כרגע. נסה שוב.");
+      setIsSavingBilling(false);
+      return false;
     }
 
-    const nextPaymentEntries = paymentEntries.map((entry) =>
-      entry.id === paymentId
-        ? nextPaymentEntry
-        : entry,
+    const paymentAliases = [patientId, updatedPatient.id, existingPayment.patient_id];
+    const nextPatientPayments = sortPaymentEntries(
+      paymentEntries
+        .filter((entry) => paymentAliases.includes(entry.patient_id))
+        .map((entry) => (entry.id === paymentId ? nextPaymentEntry : entry)),
     );
 
-    const nextPatients = patients.map((patient) =>
-      patient.id === patientId
-        ? updatedPatient
-        : patient,
+    setPaymentEntries((current) =>
+      replacePatientPaymentEntries(current, nextPatientPayments, paymentAliases),
     );
-
-    setPaymentEntries(nextPaymentEntries);
-    setPatients(nextPatients);
+    setPatients((current) =>
+      mergePatientIntoCollection(current, updatedPatient, paymentAliases),
+    );
+    setSelectedPatientId((current) =>
+      resolveSelectedPatientIdentity(current, updatedPatient, paymentAliases),
+    );
     setDeleteStatus("התשלום עודכן בהצלחה");
+    setBillingSaveStatus("התשלום עודכן בהצלחה.");
+    setIsSavingBilling(false);
+    void refreshPatientRecord(updatedPatient.id, paymentAliases);
+    return true;
   }
 
   async function handleDeletePayment({ paymentId, patientId }: DeletePaymentInput) {
     if (!paymentId || !patientId) {
-      return;
+      setBillingSaveStatus("לא ניתן למחוק תשלום בלי מזהה מלא.");
+      return false;
     }
 
     const existingPayment = paymentEntries.find((entry) => entry.id === paymentId);
 
     if (!existingPayment) {
-      return;
+      setBillingSaveStatus("לא נמצאה רשומת תשלום למחיקה.");
+      return false;
     }
+
+    setIsSavingBilling(true);
+    setBillingSaveStatus("");
 
     const { data: mutationResult, error } = await runClinicMutation<{
       patient: Patient;
@@ -1842,19 +1977,32 @@ export function ClinicFlowApp({
     const updatedPatient = mutationResult?.patient;
     if (error || !updatedPatient) {
       setDeleteStatus("לא ניתן למחוק את התשלום כרגע. המחיקה לא נשמרה בשרת.");
-      return;
+      setBillingSaveStatus("לא ניתן למחוק את התשלום כרגע. נסה שוב.");
+      setIsSavingBilling(false);
+      return false;
     }
 
-    const nextPaymentEntries = paymentEntries.filter((entry) => entry.id !== paymentId);
-    const nextPatients = patients.map((patient) =>
-      patient.id === patientId
-        ? updatedPatient
-        : patient,
+    const paymentAliases = [patientId, updatedPatient.id, existingPayment.patient_id];
+    const nextPatientPayments = sortPaymentEntries(
+      paymentEntries.filter(
+        (entry) => paymentAliases.includes(entry.patient_id) && entry.id !== paymentId,
+      ),
     );
 
-    setPaymentEntries(nextPaymentEntries);
-    setPatients(nextPatients);
+    setPaymentEntries((current) =>
+      replacePatientPaymentEntries(current, nextPatientPayments, paymentAliases),
+    );
+    setPatients((current) =>
+      mergePatientIntoCollection(current, updatedPatient, paymentAliases),
+    );
+    setSelectedPatientId((current) =>
+      resolveSelectedPatientIdentity(current, updatedPatient, paymentAliases),
+    );
     setDeleteStatus("התשלום נמחק בהצלחה");
+    setBillingSaveStatus("התשלום נמחק בהצלחה.");
+    setIsSavingBilling(false);
+    void refreshPatientRecord(updatedPatient.id, paymentAliases);
+    return true;
   }
 
   function handleJournalTemplateAnswerChange(fieldKey: string, value: string) {
@@ -2230,6 +2378,8 @@ export function ClinicFlowApp({
                       canManageAppointments={appointmentManagementEnabled}
                       canEditClinicalNotes={clinicalNotesEnabled}
                       canManageBilling={billingManagementEnabled}
+                      billingStatusMessage={billingSaveStatus}
+                      isSavingBilling={isSavingBilling}
                       onStatusDraftChange={(value) => {
                         if (!selectedPatient) {
                           return;
@@ -2265,9 +2415,9 @@ export function ClinicFlowApp({
                       }}
                       onAddPayment={({ amount, method, category, note }) => {
                         if (!selectedPatient) {
-                          return;
+                          return Promise.resolve(false);
                         }
-                        handleAddPayment({
+                        return handleAddPayment({
                           patientId: selectedPatient.id,
                           amount,
                           method,
@@ -2277,9 +2427,9 @@ export function ClinicFlowApp({
                       }}
                       onUpdatePayment={({ paymentId, amount, method, category, note }) => {
                         if (!selectedPatient) {
-                          return;
+                          return Promise.resolve(false);
                         }
-                        handleUpdatePayment({
+                        return handleUpdatePayment({
                           paymentId,
                           patientId: selectedPatient.id,
                           amount,
@@ -2290,9 +2440,9 @@ export function ClinicFlowApp({
                       }}
                       onDeletePayment={(paymentId) => {
                         if (!selectedPatient) {
-                          return;
+                          return Promise.resolve(false);
                         }
-                        handleDeletePayment({
+                        return handleDeletePayment({
                           paymentId,
                           patientId: selectedPatient.id,
                         });
@@ -2423,6 +2573,8 @@ export function ClinicFlowApp({
                     canManageAppointments={appointmentManagementEnabled}
                     canEditClinicalNotes={clinicalNotesEnabled}
                     canManageBilling={billingManagementEnabled}
+                    billingStatusMessage={billingSaveStatus}
+                    isSavingBilling={isSavingBilling}
                     onStatusDraftChange={(value) => {
                       if (!selectedPatient) {
                         return;
@@ -2458,9 +2610,9 @@ export function ClinicFlowApp({
                     }}
                     onAddPayment={({ amount, method, category, note }) => {
                       if (!selectedPatient) {
-                        return;
+                        return Promise.resolve(false);
                       }
-                      handleAddPayment({
+                      return handleAddPayment({
                         patientId: selectedPatient.id,
                         amount,
                         method,
@@ -2470,9 +2622,9 @@ export function ClinicFlowApp({
                     }}
                     onUpdatePayment={({ paymentId, amount, method, category, note }) => {
                       if (!selectedPatient) {
-                        return;
+                        return Promise.resolve(false);
                       }
-                      handleUpdatePayment({
+                      return handleUpdatePayment({
                         paymentId,
                         patientId: selectedPatient.id,
                         amount,
@@ -2483,9 +2635,9 @@ export function ClinicFlowApp({
                     }}
                     onDeletePayment={(paymentId) => {
                       if (!selectedPatient) {
-                        return;
+                        return Promise.resolve(false);
                       }
-                      handleDeletePayment({
+                      return handleDeletePayment({
                         paymentId,
                         patientId: selectedPatient.id,
                       });

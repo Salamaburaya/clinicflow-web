@@ -78,6 +78,8 @@ type PatientProfileWorkspaceProps = {
   canManageAppointments: boolean;
   canEditClinicalNotes: boolean;
   canManageBilling: boolean;
+  billingStatusMessage: string;
+  isSavingBilling: boolean;
   onStatusDraftChange: (value: string) => void;
   onStatusSave: () => void;
   onOpenJournal: () => void;
@@ -88,15 +90,15 @@ type PatientProfileWorkspaceProps = {
     method: string;
     category: string;
     note: string;
-  }) => void;
+  }) => Promise<boolean>;
   onUpdatePayment: (input: {
     paymentId: string;
     amount: number;
     method: string;
     category: string;
     note: string;
-  }) => void;
-  onDeletePayment: (paymentId: string) => void;
+  }) => Promise<boolean>;
+  onDeletePayment: (paymentId: string) => Promise<boolean>;
   formatAppointmentDate: (value: string) => string;
   formatAppointmentTime: (value: string) => string;
   formatJournalDate: (value: string) => string;
@@ -164,6 +166,8 @@ export function PatientProfileWorkspace({
   canManageAppointments,
   canEditClinicalNotes,
   canManageBilling,
+  billingStatusMessage,
+  isSavingBilling,
   onStatusDraftChange,
   onStatusSave,
   onOpenJournal,
@@ -233,6 +237,22 @@ export function PatientProfileWorkspace({
       note: "",
     });
   }
+
+  useEffect(() => {
+    resetPaymentForm();
+  }, [patient.id]);
+
+  useEffect(() => {
+    if (!editingPaymentId) {
+      return;
+    }
+
+    const paymentStillExists = payments.some((payment) => payment.id === editingPaymentId);
+
+    if (!paymentStillExists) {
+      resetPaymentForm();
+    }
+  }, [editingPaymentId, payments]);
 
   const overviewItems = [
     {
@@ -794,23 +814,26 @@ export function PatientProfileWorkspace({
               {canManageBilling ? (
                 <form
                   className="workspace-payment-form"
-                  onSubmit={(event) => {
+                  onSubmit={async (event) => {
                     event.preventDefault();
+                    if (isSavingBilling) {
+                      return;
+                    }
                     const payload = {
                       amount: Number(paymentForm.amount),
                       method: paymentForm.method,
                       category: paymentForm.category,
                       note: paymentForm.note,
                     };
-                    if (editingPaymentId) {
-                      onUpdatePayment({
-                        paymentId: editingPaymentId,
-                        ...payload,
-                      });
-                    } else {
-                      onAddPayment(payload);
+                    const submitSucceeded = editingPaymentId
+                      ? await onUpdatePayment({
+                          paymentId: editingPaymentId,
+                          ...payload,
+                        })
+                      : await onAddPayment(payload);
+                    if (submitSucceeded) {
+                      resetPaymentForm();
                     }
-                    resetPaymentForm();
                   }}
                 >
                   <label className="inline-field">
@@ -878,18 +901,24 @@ export function PatientProfileWorkspace({
                       placeholder="למשל שולם במקום עבור מפגש המשך"
                     />
                   </label>
-                  <button className="primary-btn" type="submit">
-                    {editingPaymentId ? "שמירת תיקון" : "הוספת תשלום"}
+                  <button className="primary-btn" type="submit" disabled={isSavingBilling}>
+                    {isSavingBilling
+                      ? "שומר..."
+                      : editingPaymentId
+                        ? "שמירת תיקון"
+                        : "הוספת תשלום"}
                   </button>
                   {editingPaymentId ? (
                     <button
                       className="secondary-btn"
                       type="button"
                       onClick={resetPaymentForm}
+                      disabled={isSavingBilling}
                     >
                       ביטול עריכה
                     </button>
                   ) : null}
+                  <div className="item-meta">{billingStatusMessage}</div>
                 </form>
               ) : (
                 <div className="empty-card">
