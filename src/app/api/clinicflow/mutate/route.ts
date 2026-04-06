@@ -1,5 +1,21 @@
 import { NextResponse } from "next/server";
 
+import {
+  buildPatientNotesValue,
+  buildPatientServerPayload,
+  getPatientPaymentEntriesFromNotes,
+  getPatientRollbackPayload,
+  hydratePatientRow,
+  mergePaymentEntries,
+  parsePatientNotes,
+  type StoredPaymentEntry,
+} from "@/lib/clinicflow-patient-metadata";
+import {
+  getFallbackClinicData,
+  getSeedPatientFullNameById,
+  getSeedPaymentEntriesForPatients,
+  getSeedTherapistFullNameById,
+} from "@/lib/clinicflow-dashboard";
 import { getServerSupabaseClient } from "@/lib/supabase-server";
 
 export const runtime = "nodejs";
@@ -66,21 +82,159 @@ type MutationRequest =
       patientId: string;
     };
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as MutationRequest;
     const supabase = getServerSupabaseClient();
 
+    const isMissingPaymentEntriesTableError = (message?: string | null) =>
+      Boolean(message?.includes("Could not find the table 'public.payment_entries'"));
+
+    async function resolveStoredPatientId(patientId?: string | null) {
+      if (!patientId) {
+        return null;
+      }
+
+      if (isUuid(patientId)) {
+        return patientId;
+      }
+
+      const seedFullName = getSeedPatientFullNameById(patientId);
+      if (!seedFullName) {
+        return patientId;
+      }
+
+      const patientLookupResult = await supabase
+        .from("patients")
+        .select("id")
+        .eq("full_name", seedFullName)
+        .single();
+
+      return patientLookupResult.data?.id ?? patientId;
+    }
+
+    async function resolveStoredTherapistId(therapistId?: string | null) {
+      if (!therapistId) {
+        return null;
+      }
+
+      if (isUuid(therapistId)) {
+        return therapistId;
+      }
+
+      const seedFullName = getSeedTherapistFullNameById(therapistId);
+      if (!seedFullName) {
+        return therapistId;
+      }
+
+      const therapistLookupResult = await supabase
+        .from("therapists")
+        .select("id")
+        .eq("full_name", seedFullName)
+        .single();
+
+      return therapistLookupResult.data?.id ?? therapistId;
+    }
+
+    async function resolveStoredAppointmentId(appointmentId?: string | null) {
+      if (!appointmentId) {
+        return null;
+      }
+
+      if (isUuid(appointmentId)) {
+        return appointmentId;
+      }
+
+      const fallbackAppointment = getFallbackClinicData().appointments.find(
+        (appointment) => appointment.id === appointmentId,
+      );
+
+      if (!fallbackAppointment) {
+        return appointmentId;
+      }
+
+      const resolvedPatientId = await resolveStoredPatientId(fallbackAppointment.patient_id);
+      if (!resolvedPatientId || !isUuid(resolvedPatientId)) {
+        return appointmentId;
+      }
+
+      const appointmentLookupResult = await supabase
+        .from("appointments")
+        .select("id")
+        .eq("patient_id", resolvedPatientId)
+        .eq("appointment_at", fallbackAppointment.appointment_at)
+        .single();
+
+      return appointmentLookupResult.data?.id ?? appointmentId;
+    }
+
+    async function loadMergedPatientPayments(
+      patient: {
+        id: string;
+        full_name: string;
+        notes: unknown;
+        payment_balance?: number | null;
+      },
+    ) {
+      const hydratedPatient = hydratePatientRow(patient);
+      const noteEntries = getPatientPaymentEntriesFromNotes(patient.id, patient.notes);
+      const paymentLookupResult = await supabase
+        .from("payment_entries")
+        .select("*")
+        .eq("patient_id", patient.id)
+        .order("payment_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      const tableEntries = (paymentLookupResult.data ?? []) as StoredPaymentEntry[];
+      const mergedEntries = mergePaymentEntries(
+        tableEntries,
+        noteEntries as StoredPaymentEntry[],
+      ) as StoredPaymentEntry[];
+      const seededEntries = getSeedPaymentEntriesForPatients(
+        [hydratedPatient],
+        mergedEntries,
+      ) as StoredPaymentEntry[];
+      const resolvedEntries = mergePaymentEntries(mergedEntries, seededEntries) as StoredPaymentEntry[];
+
+      return {
+        entries: resolvedEntries,
+        paymentTableMissing: isMissingPaymentEntriesTableError(paymentLookupResult.error?.message),
+        error: paymentLookupResult.error?.message ?? null,
+      };
+    }
+
     switch (body.action) {
       case "savePatient": {
-        const query = body.editingPatientId
+        const resolvedEditingPatientId = await resolveStoredPatientId(body.editingPatientId);
+        const resolvedPayload = {
+          ...body.payload,
+          therapist_id: await resolveStoredTherapistId(
+            typeof body.payload.therapist_id === "string"
+              ? body.payload.therapist_id
+              : null,
+          ),
+        };
+        const existingPatientResult = resolvedEditingPatientId
+          ? await supabase.from("patients").select("*").eq("id", resolvedEditingPatientId).single()
+          : null;
+        const payload = buildPatientServerPayload(
+          resolvedPayload,
+          existingPatientResult?.data?.notes,
+        );
+        const query = resolvedEditingPatientId
           ? supabase
               .from("patients")
-              .update(body.payload)
-              .eq("id", body.editingPatientId)
+              .update(payload)
+              .eq("id", resolvedEditingPatientId)
               .select("*")
               .single()
-          : supabase.from("patients").insert(body.payload).select("*").single();
+          : supabase.from("patients").insert(payload).select("*").single();
 
         const { data, error } = await query;
 
@@ -91,7 +245,7 @@ export async function POST(request: Request) {
           );
         }
 
-        return NextResponse.json({ ok: true, patient: data });
+        return NextResponse.json({ ok: true, patient: hydratePatientRow(data) });
       }
 
       case "saveTherapist": {
@@ -117,10 +271,16 @@ export async function POST(request: Request) {
       }
 
       case "deleteTherapist": {
+        const resolvedTherapistId = await resolveStoredTherapistId(body.therapistId);
+
+        if (!resolvedTherapistId) {
+          return NextResponse.json({ ok: false, error: "Therapist lookup failed" }, { status: 500 });
+        }
+
         const affectedPatientsResult = await supabase
           .from("patients")
           .select("id")
-          .eq("therapist_id", body.therapistId);
+          .eq("therapist_id", resolvedTherapistId);
 
         if (affectedPatientsResult.error) {
           return NextResponse.json(
@@ -132,7 +292,7 @@ export async function POST(request: Request) {
         const detachResult = await supabase
           .from("patients")
           .update({ therapist_id: null })
-          .eq("therapist_id", body.therapistId);
+          .eq("therapist_id", resolvedTherapistId);
 
         if (detachResult.error) {
           return NextResponse.json(
@@ -144,7 +304,7 @@ export async function POST(request: Request) {
         const { error } = await supabase
           .from("therapists")
           .delete()
-          .eq("id", body.therapistId);
+          .eq("id", resolvedTherapistId);
 
         if (error) {
           const affectedPatientIds =
@@ -153,7 +313,7 @@ export async function POST(request: Request) {
           if (affectedPatientIds.length > 0) {
             await supabase
               .from("patients")
-              .update({ therapist_id: body.therapistId })
+              .update({ therapist_id: resolvedTherapistId })
               .in("id", affectedPatientIds);
           }
 
@@ -164,10 +324,16 @@ export async function POST(request: Request) {
       }
 
       case "saveJournal": {
+        const resolvedPatientId = await resolveStoredPatientId(body.patientId);
+
+        if (!resolvedPatientId) {
+          return NextResponse.json({ ok: false, error: "Patient lookup failed" }, { status: 500 });
+        }
+
         const currentPatientResult = await supabase
           .from("patients")
           .select("*")
-          .eq("id", body.patientId)
+          .eq("id", resolvedPatientId)
           .single();
 
         if (currentPatientResult.error || !currentPatientResult.data) {
@@ -180,10 +346,21 @@ export async function POST(request: Request) {
           );
         }
 
+        const nextPatientPayload = buildPatientServerPayload(
+          {
+            ...body.patientPayload,
+            therapist_id: await resolveStoredTherapistId(
+              typeof body.patientPayload.therapist_id === "string"
+                ? body.patientPayload.therapist_id
+                : null,
+            ),
+          },
+          currentPatientResult.data.notes,
+        );
         const patientResult = await supabase
           .from("patients")
-          .update(body.patientPayload)
-          .eq("id", body.patientId)
+          .update(nextPatientPayload)
+          .eq("id", resolvedPatientId)
           .select("*")
           .single();
 
@@ -200,24 +377,26 @@ export async function POST(request: Request) {
         let journalEntry = null;
 
         if (body.journalPayload) {
+          const normalizedJournalPayload = {
+            ...body.journalPayload,
+            patient_id: resolvedPatientId,
+            therapist_id: await resolveStoredTherapistId(
+              typeof body.journalPayload.therapist_id === "string"
+                ? body.journalPayload.therapist_id
+                : null,
+            ),
+          };
           const journalResult = await supabase
             .from("journal_entries")
-            .insert(body.journalPayload)
+            .insert(normalizedJournalPayload)
             .select("*")
             .single();
 
           if (journalResult.error || !journalResult.data) {
-            const rollbackPayload = Object.fromEntries(
-              Object.keys(body.patientPayload).map((key) => [
-                key,
-                currentPatientResult.data?.[key as keyof typeof currentPatientResult.data] ?? null,
-              ]),
-            );
-
             await supabase
               .from("patients")
-              .update(rollbackPayload)
-              .eq("id", body.patientId);
+              .update(getPatientRollbackPayload(currentPatientResult.data))
+              .eq("id", resolvedPatientId);
 
             return NextResponse.json(
               {
@@ -233,16 +412,22 @@ export async function POST(request: Request) {
 
         return NextResponse.json({
           ok: true,
-          patient: patientResult.data,
+          patient: hydratePatientRow(patientResult.data),
           journalEntry,
         });
       }
 
       case "savePayment": {
+        const resolvedPatientId = await resolveStoredPatientId(body.patientId);
+
+        if (!resolvedPatientId) {
+          return NextResponse.json({ ok: false, error: "Patient lookup failed" }, { status: 500 });
+        }
+
         const patientResult = await supabase
           .from("patients")
           .select("*")
-          .eq("id", body.patientId)
+          .eq("id", resolvedPatientId)
           .single();
 
         if (patientResult.error || !patientResult.data) {
@@ -255,62 +440,83 @@ export async function POST(request: Request) {
           );
         }
 
-        const paymentResult = await supabase
-          .from("payment_entries")
-          .insert({
-            patient_id: body.patientId,
-            amount: body.amount,
-            method: body.method,
-            status: "completed",
-            category: body.category,
-            note: body.note?.trim() || null,
-          })
-          .select("*")
-          .single();
-
-        if (paymentResult.error || !paymentResult.data) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error: paymentResult.error?.message ?? "Payment save failed",
-            },
-            { status: 500 },
-          );
-        }
-
+        const currentBilling = await loadMergedPatientPayments(
+          {
+            id: resolvedPatientId,
+            full_name: patientResult.data.full_name,
+            notes: patientResult.data.notes,
+            payment_balance: patientResult.data.payment_balance,
+          },
+        );
+        const currentBalance = parsePatientNotes(patientResult.data.notes).paymentBalance ?? 0;
+        const nextPaymentEntry: StoredPaymentEntry = {
+          id: crypto.randomUUID(),
+          patient_id: resolvedPatientId,
+          created_at: new Date().toISOString(),
+          payment_date: new Date().toISOString(),
+          amount: Number(body.amount),
+          method: body.method,
+          status: "completed",
+          category: body.category,
+          note: body.note?.trim() || null,
+        };
         const nextBalance =
-          Number(patientResult.data.payment_balance ?? 0) - Number(body.amount);
+          Number(currentBalance) - Number(body.amount);
+        const nextNotes = buildPatientNotesValue(patientResult.data.notes, {
+          paymentBalance: nextBalance,
+          paymentEntries: [nextPaymentEntry, ...currentBilling.entries],
+        });
         const patientUpdateResult = await supabase
           .from("patients")
-          .update({ payment_balance: nextBalance })
-          .eq("id", body.patientId)
+          .update({ notes: nextNotes })
+          .eq("id", resolvedPatientId)
           .select("*")
           .single();
 
         if (patientUpdateResult.error || !patientUpdateResult.data) {
-          await supabase.from("payment_entries").delete().eq("id", paymentResult.data.id);
-
           return NextResponse.json(
             {
               ok: false,
-              error: patientUpdateResult.error?.message ?? "Patient balance update failed",
+              error: patientUpdateResult.error?.message ?? "Payment save failed",
             },
             { status: 500 },
           );
         }
 
+        const mirrorInsertResult = await supabase
+          .from("payment_entries")
+          .insert(nextPaymentEntry)
+          .select("*")
+          .single();
+
+        const warnings: string[] = [];
+        if (
+          mirrorInsertResult.error
+          && !isMissingPaymentEntriesTableError(mirrorInsertResult.error.message)
+        ) {
+          warnings.push(mirrorInsertResult.error.message);
+        }
+
         return NextResponse.json({
           ok: true,
-          paymentEntry: paymentResult.data,
-          patient: patientUpdateResult.data,
+          paymentEntry: nextPaymentEntry,
+          patient: hydratePatientRow(patientUpdateResult.data),
+          warnings,
         });
       }
 
       case "updatePayment": {
-        const [patientResult, paymentLookupResult] = await Promise.all([
-          supabase.from("patients").select("*").eq("id", body.patientId).single(),
-          supabase.from("payment_entries").select("*").eq("id", body.paymentId).single(),
-        ]);
+        const resolvedPatientId = await resolveStoredPatientId(body.patientId);
+
+        if (!resolvedPatientId) {
+          return NextResponse.json({ ok: false, error: "Patient lookup failed" }, { status: 500 });
+        }
+
+        const patientResult = await supabase
+          .from("patients")
+          .select("*")
+          .eq("id", resolvedPatientId)
+          .single();
 
         if (patientResult.error || !patientResult.data) {
           return NextResponse.json(
@@ -322,17 +528,67 @@ export async function POST(request: Request) {
           );
         }
 
-        if (paymentLookupResult.error || !paymentLookupResult.data) {
+        const currentBilling = await loadMergedPatientPayments(
+          {
+            id: resolvedPatientId,
+            full_name: patientResult.data.full_name,
+            notes: patientResult.data.notes,
+            payment_balance: patientResult.data.payment_balance,
+          },
+        );
+        const existingPayment = currentBilling.entries.find(
+          (entry) => entry.id === body.paymentId,
+        );
+
+        if (!existingPayment) {
           return NextResponse.json(
             {
               ok: false,
-              error: paymentLookupResult.error?.message ?? "Payment lookup failed",
+              error: "Payment lookup failed",
             },
             { status: 500 },
           );
         }
 
-        const paymentUpdateResult = await supabase
+        const nextPaymentEntry: StoredPaymentEntry = {
+          ...existingPayment,
+          amount: Number(body.amount),
+          method: body.method,
+          category: body.category,
+          note: body.note?.trim() || null,
+        };
+
+        const previousAmount = Number(existingPayment.amount ?? 0);
+        const nextAmount = Number(body.amount);
+        const nextBalance =
+          Number(parsePatientNotes(patientResult.data.notes).paymentBalance ?? 0)
+          - (nextAmount - previousAmount);
+        const nextNotes = buildPatientNotesValue(patientResult.data.notes, {
+          paymentBalance: nextBalance,
+          paymentEntries: currentBilling.entries.map((entry) =>
+            entry.id === body.paymentId
+              ? nextPaymentEntry
+              : entry),
+        });
+
+        const patientUpdateResult = await supabase
+          .from("patients")
+          .update({ notes: nextNotes })
+          .eq("id", resolvedPatientId)
+          .select("*")
+          .single();
+
+        if (patientUpdateResult.error || !patientUpdateResult.data) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: patientUpdateResult.error?.message ?? "Payment update failed",
+            },
+            { status: 500 },
+          );
+        }
+
+        const mirrorUpdateResult = await supabase
           .from("payment_entries")
           .update({
             amount: body.amount,
@@ -344,60 +600,34 @@ export async function POST(request: Request) {
           .select("*")
           .single();
 
-        if (paymentUpdateResult.error || !paymentUpdateResult.data) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error: paymentUpdateResult.error?.message ?? "Payment update failed",
-            },
-            { status: 500 },
-          );
-        }
-
-        const previousAmount = Number(paymentLookupResult.data.amount ?? 0);
-        const nextAmount = Number(body.amount);
-        const nextBalance =
-          Number(patientResult.data.payment_balance ?? 0) - (nextAmount - previousAmount);
-
-        const patientUpdateResult = await supabase
-          .from("patients")
-          .update({ payment_balance: nextBalance })
-          .eq("id", body.patientId)
-          .select("*")
-          .single();
-
-        if (patientUpdateResult.error || !patientUpdateResult.data) {
-          await supabase
-            .from("payment_entries")
-            .update({
-              amount: paymentLookupResult.data.amount,
-              method: paymentLookupResult.data.method,
-              category: paymentLookupResult.data.category,
-              note: paymentLookupResult.data.note,
-            })
-            .eq("id", body.paymentId);
-
-          return NextResponse.json(
-            {
-              ok: false,
-              error: patientUpdateResult.error?.message ?? "Patient balance update failed",
-            },
-            { status: 500 },
-          );
+        const warnings: string[] = [];
+        if (
+          mirrorUpdateResult.error
+          && !isMissingPaymentEntriesTableError(mirrorUpdateResult.error.message)
+        ) {
+          warnings.push(mirrorUpdateResult.error.message);
         }
 
         return NextResponse.json({
           ok: true,
-          paymentEntry: paymentUpdateResult.data,
-          patient: patientUpdateResult.data,
+          paymentEntry: nextPaymentEntry,
+          patient: hydratePatientRow(patientUpdateResult.data),
+          warnings,
         });
       }
 
       case "deletePayment": {
-        const [patientResult, paymentLookupResult] = await Promise.all([
-          supabase.from("patients").select("*").eq("id", body.patientId).single(),
-          supabase.from("payment_entries").select("*").eq("id", body.paymentId).single(),
-        ]);
+        const resolvedPatientId = await resolveStoredPatientId(body.patientId);
+
+        if (!resolvedPatientId) {
+          return NextResponse.json({ ok: false, error: "Patient lookup failed" }, { status: 500 });
+        }
+
+        const patientResult = await supabase
+          .from("patients")
+          .select("*")
+          .eq("id", resolvedPatientId)
+          .single();
 
         if (patientResult.error || !patientResult.data) {
           return NextResponse.json(
@@ -409,75 +639,97 @@ export async function POST(request: Request) {
           );
         }
 
-        if (paymentLookupResult.error || !paymentLookupResult.data) {
+        const currentBilling = await loadMergedPatientPayments(
+          {
+            id: resolvedPatientId,
+            full_name: patientResult.data.full_name,
+            notes: patientResult.data.notes,
+            payment_balance: patientResult.data.payment_balance,
+          },
+        );
+        const existingPayment = currentBilling.entries.find(
+          (entry) => entry.id === body.paymentId,
+        );
+
+        if (!existingPayment) {
           return NextResponse.json(
             {
               ok: false,
-              error: paymentLookupResult.error?.message ?? "Payment lookup failed",
-            },
-            { status: 500 },
-          );
-        }
-
-        const deleteResult = await supabase
-          .from("payment_entries")
-          .delete()
-          .eq("id", body.paymentId);
-
-        if (deleteResult.error) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error: deleteResult.error.message,
+              error: "Payment lookup failed",
             },
             { status: 500 },
           );
         }
 
         const nextBalance =
-          Number(patientResult.data.payment_balance ?? 0) +
-          Number(paymentLookupResult.data.amount ?? 0);
+          Number(parsePatientNotes(patientResult.data.notes).paymentBalance ?? 0) +
+          Number(existingPayment.amount ?? 0);
+        const nextNotes = buildPatientNotesValue(patientResult.data.notes, {
+          paymentBalance: nextBalance,
+          paymentEntries: currentBilling.entries.filter(
+            (entry) => entry.id !== body.paymentId,
+          ),
+        });
         const patientUpdateResult = await supabase
           .from("patients")
-          .update({ payment_balance: nextBalance })
-          .eq("id", body.patientId)
+          .update({ notes: nextNotes })
+          .eq("id", resolvedPatientId)
           .select("*")
           .single();
 
         if (patientUpdateResult.error || !patientUpdateResult.data) {
-          await supabase.from("payment_entries").insert({
-            patient_id: paymentLookupResult.data.patient_id,
-            amount: paymentLookupResult.data.amount,
-            method: paymentLookupResult.data.method,
-            status: paymentLookupResult.data.status,
-            category: paymentLookupResult.data.category,
-            note: paymentLookupResult.data.note,
-          });
-
           return NextResponse.json(
             {
               ok: false,
-              error: patientUpdateResult.error?.message ?? "Patient balance update failed",
+              error: patientUpdateResult.error?.message ?? "Payment delete failed",
             },
             { status: 500 },
           );
         }
 
+        const mirrorDeleteResult = await supabase
+          .from("payment_entries")
+          .delete()
+          .eq("id", body.paymentId);
+
+        const warnings: string[] = [];
+        if (
+          mirrorDeleteResult.error
+          && !isMissingPaymentEntriesTableError(mirrorDeleteResult.error.message)
+        ) {
+          warnings.push(mirrorDeleteResult.error.message);
+        }
+
         return NextResponse.json({
           ok: true,
-          patient: patientUpdateResult.data,
+          patient: hydratePatientRow(patientUpdateResult.data),
+          warnings,
         });
       }
 
       case "saveAppointment": {
-        const query = body.editingAppointmentId
+        const resolvedAppointmentId = await resolveStoredAppointmentId(body.editingAppointmentId);
+        const normalizedPayload = {
+          ...body.payload,
+          patient_id: await resolveStoredPatientId(
+            typeof body.payload.patient_id === "string"
+              ? body.payload.patient_id
+              : null,
+          ),
+          therapist_id: await resolveStoredTherapistId(
+            typeof body.payload.therapist_id === "string"
+              ? body.payload.therapist_id
+              : null,
+          ),
+        };
+        const query = resolvedAppointmentId
           ? supabase
               .from("appointments")
-              .update(body.payload)
-              .eq("id", body.editingAppointmentId)
+              .update(normalizedPayload)
+              .eq("id", resolvedAppointmentId)
               .select("*")
               .single()
-          : supabase.from("appointments").insert(body.payload).select("*").single();
+          : supabase.from("appointments").insert(normalizedPayload).select("*").single();
 
         const { data, error } = await query;
 
@@ -492,10 +744,16 @@ export async function POST(request: Request) {
       }
 
       case "updatePatientStatus": {
+        const resolvedPatientId = await resolveStoredPatientId(body.patientId);
+
+        if (!resolvedPatientId) {
+          return NextResponse.json({ ok: false, error: "Patient lookup failed" }, { status: 500 });
+        }
+
         const { data, error } = await supabase
           .from("patients")
           .update({ status: body.status })
-          .eq("id", body.patientId)
+          .eq("id", resolvedPatientId)
           .select("*")
           .single();
 
@@ -506,14 +764,20 @@ export async function POST(request: Request) {
           );
         }
 
-        return NextResponse.json({ ok: true, patient: data });
+        return NextResponse.json({ ok: true, patient: hydratePatientRow(data) });
       }
 
       case "deleteAppointment": {
+        const resolvedAppointmentId = await resolveStoredAppointmentId(body.appointmentId);
+
+        if (!resolvedAppointmentId) {
+          return NextResponse.json({ ok: false, error: "Appointment lookup failed" }, { status: 500 });
+        }
+
         const { error } = await supabase
           .from("appointments")
           .delete()
-          .eq("id", body.appointmentId);
+          .eq("id", resolvedAppointmentId);
 
         if (error) {
           return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
@@ -523,10 +787,16 @@ export async function POST(request: Request) {
       }
 
       case "deletePatient": {
+        const resolvedPatientId = await resolveStoredPatientId(body.patientId);
+
+        if (!resolvedPatientId) {
+          return NextResponse.json({ ok: false, error: "Patient lookup failed" }, { status: 500 });
+        }
+
         const journalDeleteResult = await supabase
           .from("journal_entries")
           .delete()
-          .eq("patient_id", body.patientId);
+          .eq("patient_id", resolvedPatientId);
 
         if (journalDeleteResult.error) {
           return NextResponse.json(
@@ -538,7 +808,7 @@ export async function POST(request: Request) {
         const appointmentDeleteResult = await supabase
           .from("appointments")
           .delete()
-          .eq("patient_id", body.patientId);
+          .eq("patient_id", resolvedPatientId);
 
         if (appointmentDeleteResult.error) {
           return NextResponse.json(
@@ -550,9 +820,12 @@ export async function POST(request: Request) {
         const paymentDeleteResult = await supabase
           .from("payment_entries")
           .delete()
-          .eq("patient_id", body.patientId);
+          .eq("patient_id", resolvedPatientId);
 
-        if (paymentDeleteResult.error) {
+        if (
+          paymentDeleteResult.error
+          && !isMissingPaymentEntriesTableError(paymentDeleteResult.error.message)
+        ) {
           return NextResponse.json(
             { ok: false, error: paymentDeleteResult.error.message },
             { status: 500 },
@@ -562,7 +835,7 @@ export async function POST(request: Request) {
         const patientDeleteResult = await supabase
           .from("patients")
           .delete()
-          .eq("id", body.patientId);
+          .eq("id", resolvedPatientId);
 
         if (patientDeleteResult.error) {
           return NextResponse.json(

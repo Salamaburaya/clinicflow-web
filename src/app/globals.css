@@ -21,9 +21,15 @@
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
 
 body {
   margin: 0;
+  width: 100%;
   min-height: 100vh;
   font-family: "Segoe UI", "Assistant", "Noto Sans Hebrew", Arial, Helvetica, sans-serif;
   background:
@@ -31,13 +37,17 @@ body {
     radial-gradient(circle at bottom right, rgba(201, 111, 74, 0.12), transparent 24%),
     linear-gradient(135deg, #f7f1e8, #f0e7da 55%, #eee2d2);
   color: var(--text);
+  overflow-x: hidden;
 }
 
 button, input, select, textarea { font: inherit; }
 
 .page-shell {
   display: block;
+  width: 100%;
+  max-width: 100%;
   padding: 24px;
+  overflow-x: clip;
 }
 
 .content, .card, .dialog-card, .topbar { backdrop-filter: blur(14px); }
@@ -189,7 +199,22 @@ button, input, select, textarea { font: inherit; }
   background: rgba(255, 255, 255, 0.82);
 }
 
-.content { padding: 8px 0; }
+.content {
+  width: min(1280px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  margin-inline: auto;
+  padding: 8px 0;
+  overflow-x: hidden;
+}
+
+.content-patients {
+  width: min(1180px, 100%);
+}
+
+.content-patient-record {
+  width: min(1100px, 100%);
+}
 
 .hero {
   display: flex;
@@ -721,6 +746,21 @@ button, input, select, textarea { font: inherit; }
   padding: 16px;
 }
 
+.card,
+.patient-route-toolbar,
+.patient-route-state-card,
+.patient-workspace-card,
+.workspace-panel-card,
+.patient-kpi-card,
+.workspace-overview-item,
+.workspace-rich-card,
+.workspace-entry-card,
+.workspace-mobile-card {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
 .patient-kpi-card span,
 .workspace-overview-item span {
   color: var(--muted);
@@ -827,6 +867,96 @@ button, input, select, textarea { font: inherit; }
   gap: 12px;
 }
 
+.workspace-long-text {
+  display: block;
+  line-height: 1.6;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.patient-title-block,
+.patient-route-toolbar > div,
+.patient-route-state-card > div,
+.item-meta,
+.workspace-rich-card strong,
+.workspace-overview-item strong,
+.workspace-mobile-item strong,
+.workspace-entry-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.workspace-mobile-only {
+  display: none;
+}
+
+.workspace-desktop-only {
+  display: block;
+}
+
+.workspace-mobile-list {
+  display: grid;
+  gap: 12px;
+}
+
+.workspace-mobile-list.workspace-mobile-only {
+  display: none;
+}
+
+.workspace-mobile-card {
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.76);
+  display: grid;
+  gap: 12px;
+}
+
+.workspace-mobile-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workspace-mobile-card-head strong {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.workspace-mobile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.workspace-mobile-item {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(248, 250, 248, 0.9);
+  border: 1px solid rgba(20, 108, 99, 0.08);
+}
+
+.workspace-mobile-item span {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.workspace-mobile-item strong {
+  line-height: 1.6;
+}
+
+.workspace-mobile-item-full {
+  grid-column: 1 / -1;
+}
+
+.workspace-mobile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .workspace-note-callout {
   padding: 14px;
   border-radius: 18px;
@@ -918,8 +1048,43 @@ button, input, select, textarea { font: inherit; }
   .patient-directory-actions, .patient-route-toolbar-actions, .patient-route-state-actions { justify-content: stretch; }
 }
 
+@media (max-width: 920px) {
+  .page-shell {
+    padding: 14px;
+  }
+
+  .content,
+  .content-patients,
+  .content-patient-record {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .workspace-desktop-only {
+    display: none !important;
+  }
+
+  .workspace-mobile-only {
+    display: grid !important;
+  }
+
+  .workspace-mobile-list.workspace-mobile-only {
+    display: grid !important;
+  }
+
+  .workspace-table-wrap {
+    overflow-x: clip;
+  }
+
+  .workspace-table {
+    min-width: 0;
+    width: 100%;
+    table-layout: fixed;
+  }
+}
+
 @media (max-width: 720px) {
-  .page-shell { padding: 14px; }
+  .content { overflow-x: clip; }
   .topbar {
     top: 8px;
     padding: 8px;
@@ -985,4 +1150,58 @@ button, input, select, textarea { font: inherit; }
   .section-summary { white-space: normal; }
   .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .select-row { grid-template-columns: 1fr; }
+  .card-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .patient-workspace-header,
+  .patient-workspace-actions,
+  .patient-route-toolbar-actions,
+  .patient-route-state-actions,
+  .patient-directory-actions,
+  .workspace-payment-cell,
+  .workspace-mobile-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .patient-route-toolbar,
+  .patient-route-state-card,
+  .patient-directory-callout {
+    gap: 12px;
+  }
+  .patient-title-block h3 {
+    font-size: 1.45rem;
+  }
+  .patient-avatar {
+    width: 60px;
+    height: 60px;
+    font-size: 1.4rem;
+  }
+  .patient-kpi-card strong,
+  .workspace-overview-item strong,
+  .workspace-rich-card strong {
+    font-size: 0.98rem;
+  }
+  .patient-tab {
+    min-height: 48px;
+    font-size: 0.95rem;
+  }
+  .workspace-table {
+    min-width: 0;
+  }
+  .workspace-desktop-only {
+    display: none;
+  }
+  .workspace-mobile-only {
+    display: grid;
+  }
+  .workspace-mobile-list.workspace-mobile-only {
+    display: grid;
+  }
+  .workspace-mobile-grid {
+    grid-template-columns: 1fr;
+  }
+  .workspace-mobile-card-head .chip {
+    justify-self: start;
+  }
 }

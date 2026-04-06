@@ -1,5 +1,17 @@
 import { getSupabaseClient } from "@/lib/supabase";
-import { getServerSupabaseClient } from "@/lib/supabase-server";
+import {
+  getServerSupabaseClient,
+  hasServerSupabaseServiceRole,
+} from "@/lib/supabase-server";
+import {
+  buildPatientNotesValue,
+  getPatientPaymentEntriesFromNotes,
+  hydratePatientRow,
+  mergePaymentEntries,
+  parsePatientNotes,
+  pickPatientProfileMetadata,
+  type StoredPaymentEntry,
+} from "@/lib/clinicflow-patient-metadata";
 
 type Therapist = {
   id: string;
@@ -40,6 +52,7 @@ type Patient = {
   attendance_risk?: string | null;
   functional_status?: string | null;
   payment_balance?: number | null;
+  notes?: string | null;
 };
 
 type Appointment = {
@@ -76,11 +89,40 @@ type PublicSupabaseClient = ReturnType<typeof getSupabaseClient>;
 type ServerSupabaseClient = ReturnType<typeof getServerSupabaseClient>;
 type DashboardSupabaseClient = PublicSupabaseClient | ServerSupabaseClient;
 
+type PatientSeedContext = {
+  id: string;
+  full_name: string;
+  payment_balance?: number | null;
+  notes?: unknown;
+};
+
 function createSeedAppointment(daysOffset: number, hour: number, minute: number) {
   const date = new Date();
   date.setDate(date.getDate() + daysOffset);
   date.setHours(hour, minute, 0, 0);
   return date.toISOString();
+}
+
+function createPatientInsertPayload(
+  patient: Patient,
+  therapistId: string | null,
+  paymentEntries: PaymentEntry[],
+) {
+  return {
+    full_name: patient.full_name,
+    discipline: patient.discipline,
+    status: patient.status,
+    diagnosis: patient.diagnosis,
+    treatment_goal: patient.treatment_goal,
+    therapist_id: therapistId,
+    phone: patient.phone ?? null,
+    birth_date: patient.birth_date ?? null,
+    notes: buildPatientNotesValue(null, {
+      profile: pickPatientProfileMetadata(patient),
+      paymentBalance: patient.payment_balance ?? 0,
+      paymentEntries: paymentEntries as StoredPaymentEntry[],
+    }),
+  };
 }
 
 export function getFallbackClinicData() {
@@ -94,7 +136,7 @@ export function getFallbackClinicData() {
     },
     {
       id: "seed-therapist-pt",
-      full_name: "מוחמד חאסקיה",
+      full_name: "מוחמד חאזקיה",
       profession: "פיזיותרפיה",
       specialty: "שיקום אורתופדי, כאב ותפקוד",
       phone: "0502223344",
@@ -397,6 +439,97 @@ export function getFallbackClinicData() {
   return { therapists, patients, appointments, paymentEntries };
 }
 
+export function getSeedPatientFullNameById(patientId: string) {
+  return (
+    getFallbackClinicData().patients.find((patient) => patient.id === patientId)?.full_name ?? null
+  );
+}
+
+export function getSeedTherapistFullNameById(therapistId: string) {
+  return (
+    getFallbackClinicData().therapists.find((therapist) => therapist.id === therapistId)?.full_name
+    ?? null
+  );
+}
+
+export function resolvePatientIdFromKnownData<
+  TPatient extends {
+    id: string;
+    full_name: string;
+  },
+>(patientId: string, patients: TPatient[]) {
+  if (!patientId) {
+    return patientId;
+  }
+
+  const directMatch = patients.find((patient) => patient.id === patientId);
+  if (directMatch) {
+    return directMatch.id;
+  }
+
+  const seedFullName = getSeedPatientFullNameById(patientId);
+  if (!seedFullName) {
+    return patientId;
+  }
+
+  return patients.find((patient) => patient.full_name === seedFullName)?.id ?? patientId;
+}
+
+export function getSeedPaymentEntriesForPatients(
+  patients: PatientSeedContext[],
+  existingEntries: StoredPaymentEntry[],
+) {
+  const fallback = getFallbackClinicData();
+  const storedPatientsByName = new Map(
+    patients.map((patient) => [patient.full_name, patient]),
+  );
+
+  return fallback.paymentEntries.flatMap((entry) => {
+    const seedPatient = fallback.patients.find(
+      (patient) => patient.id === entry.patient_id,
+    );
+
+    if (!seedPatient) {
+      return [];
+    }
+
+    const storedPatient = storedPatientsByName.get(seedPatient.full_name);
+
+    if (!storedPatient) {
+      return [];
+    }
+
+    const existingNoteEntries = getPatientPaymentEntriesFromNotes(
+      storedPatient.id,
+      storedPatient.notes,
+    ) as StoredPaymentEntry[];
+    const currentBalance = parsePatientNotes(storedPatient.notes).paymentBalance ?? 0;
+    const existingEntryExists = existingEntries.some(
+      (existingEntry) =>
+        existingEntry.patient_id === storedPatient.id &&
+        (existingEntry.id === entry.id ||
+          (existingEntry.payment_date === entry.payment_date &&
+            Number(existingEntry.amount) === Number(entry.amount) &&
+            existingEntry.category === entry.category)),
+    );
+
+    if (
+      existingEntryExists ||
+      existingNoteEntries.length > 0 ||
+      currentBalance !== (seedPatient.payment_balance ?? 0)
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        ...entry,
+        patient_id: storedPatient.id,
+      } satisfies StoredPaymentEntry,
+    ];
+  });
+}
+
 async function loadClinicRows(supabase: DashboardSupabaseClient): Promise<ClinicDashboardData> {
   const [therapistsResult, patientsResult, appointmentsResult, paymentEntriesResult] =
     await Promise.all([
@@ -413,16 +546,40 @@ async function loadClinicRows(supabase: DashboardSupabaseClient): Promise<Clinic
         .order("created_at", { ascending: false }),
     ]);
 
+  const patientRows = ((patientsResult.data ?? []) as Patient[]).map((row) =>
+    hydratePatientRow(row),
+  ) as Patient[];
+  const notePaymentEntries = ((patientsResult.data ?? []) as Patient[]).flatMap((row) =>
+    getPatientPaymentEntriesFromNotes(row.id, row.notes),
+  ) as PaymentEntry[];
+  const tablePaymentEntries = (paymentEntriesResult.data ?? []) as PaymentEntry[];
+  const mergedPaymentEntries = mergePaymentEntries(
+    tablePaymentEntries as StoredPaymentEntry[],
+    notePaymentEntries as StoredPaymentEntry[],
+  ) as PaymentEntry[];
+  const seedPaymentEntries = getSeedPaymentEntriesForPatients(
+    patientRows,
+    mergedPaymentEntries as StoredPaymentEntry[],
+  ) as PaymentEntry[];
+  const resolvedPaymentEntries = mergePaymentEntries(
+    mergedPaymentEntries as StoredPaymentEntry[],
+    seedPaymentEntries as StoredPaymentEntry[],
+  ) as PaymentEntry[];
+  const paymentEntriesErrorMessage = paymentEntriesResult.error?.message ?? null;
+  const paymentEntriesMissingTable =
+    paymentEntriesErrorMessage?.includes("Could not find the table 'public.payment_entries'")
+    ?? false;
+
   return {
     therapists: (therapistsResult.data ?? []) as Therapist[],
-    patients: (patientsResult.data ?? []) as Patient[],
+    patients: patientRows,
     appointments: (appointmentsResult.data ?? []) as Appointment[],
-    paymentEntries: (paymentEntriesResult.data ?? []) as PaymentEntry[],
+    paymentEntries: resolvedPaymentEntries,
     errors: [
       therapistsResult.error?.message,
       patientsResult.error?.message,
       appointmentsResult.error?.message,
-      paymentEntriesResult.error?.message,
+      paymentEntriesMissingTable ? null : paymentEntriesErrorMessage,
     ].filter(Boolean) as string[],
   };
 }
@@ -432,7 +589,58 @@ function hasClinicData(result: ClinicDashboardData) {
 }
 
 function shouldEnsureServerSeed(result: ClinicDashboardData) {
-  return result.patients.length === 0;
+  if (result.patients.length === 0) {
+    return true;
+  }
+
+  const fallback = getFallbackClinicData();
+  const therapistNames = new Set(
+    result.therapists.map((therapist) => therapist.full_name),
+  );
+  const patientByName = new Map(
+    result.patients.map((patient) => [patient.full_name, patient]),
+  );
+
+  if (
+    fallback.therapists.some(
+      (therapist) => !therapistNames.has(therapist.full_name),
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    fallback.patients.some((patient) => !patientByName.has(patient.full_name))
+  ) {
+    return true;
+  }
+
+  return fallback.patients.some((fallbackPatient) => {
+    const fallbackEntries = fallback.paymentEntries.filter(
+      (entry) => entry.patient_id === fallbackPatient.id,
+    );
+
+    if (fallbackEntries.length === 0) {
+      return false;
+    }
+
+    const storedPatient = patientByName.get(fallbackPatient.full_name);
+
+    if (!storedPatient) {
+      return false;
+    }
+
+    const existingNoteEntries = getPatientPaymentEntriesFromNotes(
+      storedPatient.id,
+      storedPatient.notes,
+    );
+    const currentBalance = parsePatientNotes(storedPatient.notes).paymentBalance ?? 0;
+
+    return (
+      existingNoteEntries.length === 0
+      && currentBalance === (fallbackPatient.payment_balance ?? 0)
+    );
+  });
 }
 
 async function ensureSeedClinicDataOnServer(
@@ -517,39 +725,14 @@ async function ensureSeedClinicDataOnServer(
     const patientInsertResult = await supabase
       .from("patients")
       .insert(
-        missingPatients.map((patient) => ({
-          full_name: patient.full_name,
-          discipline: patient.discipline,
-          status: patient.status,
-          diagnosis: patient.diagnosis,
-          treatment_goal: patient.treatment_goal,
-          therapist_id: patient.therapist_id
-            ? therapistIdMap.get(patient.therapist_id) ?? null
-            : null,
-          phone: patient.phone ?? null,
-          email: patient.email ?? null,
-          city: patient.city ?? null,
-          settlement: patient.settlement ?? null,
-          address: patient.address ?? null,
-          birth_date: patient.birth_date ?? null,
-          gender: patient.gender ?? null,
-          title: patient.title ?? null,
-          occupation: patient.occupation ?? null,
-          referring_source: patient.referring_source ?? null,
-          intake_summary: patient.intake_summary ?? null,
-          medical_background: patient.medical_background ?? null,
-          medications: patient.medications ?? null,
-          allergies: patient.allergies ?? null,
-          emergency_contact_name: patient.emergency_contact_name ?? null,
-          emergency_contact_phone: patient.emergency_contact_phone ?? null,
-          insurance_provider: patient.insurance_provider ?? null,
-          coverage_track: patient.coverage_track ?? null,
-          communication_preference: patient.communication_preference ?? null,
-          preferred_days: patient.preferred_days ?? null,
-          attendance_risk: patient.attendance_risk ?? null,
-          functional_status: patient.functional_status ?? null,
-          payment_balance: patient.payment_balance ?? 0,
-        })),
+        missingPatients.map((patient) =>
+          createPatientInsertPayload(
+            patient,
+            patient.therapist_id
+              ? therapistIdMap.get(patient.therapist_id) ?? null
+              : null,
+            [],
+          )),
       )
       .select("*");
 
@@ -563,7 +746,9 @@ async function ensureSeedClinicDataOnServer(
     .select("*")
     .in("full_name", patientNames);
 
-  const patientRows = (refreshedPatientLookupResult.data ?? []) as Patient[];
+  const patientRows = ((refreshedPatientLookupResult.data ?? []) as Patient[]).map((row) =>
+    hydratePatientRow(row),
+  ) as Patient[];
   if (refreshedPatientLookupResult.error) {
     seedErrors.push(`refresh-patients:${refreshedPatientLookupResult.error.message}`);
   }
@@ -577,6 +762,57 @@ async function ensureSeedClinicDataOnServer(
       patientIdMap.set(seedPatient.id, storedPatient.id);
     }
   });
+
+  for (const fallbackPatient of fallback.patients) {
+    const storedPatient = patientRows.find(
+      (patient) => patient.full_name === fallbackPatient.full_name,
+    );
+
+    if (!storedPatient) {
+      continue;
+    }
+
+    const fallbackEntriesForPatient = fallback.paymentEntries
+      .filter((entry) => entry.patient_id === fallbackPatient.id)
+      .map((entry) => ({
+        ...entry,
+        patient_id: storedPatient.id,
+      })) as StoredPaymentEntry[];
+    const existingNoteEntries = getPatientPaymentEntriesFromNotes(
+      storedPatient.id,
+      storedPatient.notes,
+    ) as StoredPaymentEntry[];
+    const shouldBackfillSeedEntries =
+      existingNoteEntries.length === 0
+      && fallbackEntriesForPatient.length > 0
+      && Number(parsePatientNotes(storedPatient.notes).paymentBalance ?? 0)
+        === Number(fallbackPatient.payment_balance ?? 0);
+
+    const nextNotes = buildPatientNotesValue(storedPatient.notes, {
+      profile: {
+        ...pickPatientProfileMetadata(fallbackPatient),
+        ...pickPatientProfileMetadata(storedPatient),
+      },
+      paymentBalance:
+        parsePatientNotes(storedPatient.notes).paymentBalance ?? (fallbackPatient.payment_balance ?? 0),
+      paymentEntries: shouldBackfillSeedEntries
+        ? fallbackEntriesForPatient
+        : existingNoteEntries,
+    });
+
+    if (nextNotes === (storedPatient.notes ?? null)) {
+      continue;
+    }
+
+    const notesUpdateResult = await supabase
+      .from("patients")
+      .update({ notes: nextNotes })
+      .eq("id", storedPatient.id);
+
+    if (notesUpdateResult.error) {
+      seedErrors.push(`seed-patient-notes:${notesUpdateResult.error.message}`);
+    }
+  }
 
   const seededPatientIds = Array.from(patientIdMap.values());
   if (seededPatientIds.length > 0) {
@@ -642,9 +878,14 @@ async function ensureSeedClinicDataOnServer(
       ),
     );
 
-    if (paymentsLookupResult.error) {
+    const paymentTableMissing =
+      paymentsLookupResult.error?.message?.includes(
+        "Could not find the table 'public.payment_entries'",
+      ) ?? false;
+
+    if (paymentsLookupResult.error && !paymentTableMissing) {
       seedErrors.push(`lookup-payments:${paymentsLookupResult.error.message}`);
-    } else {
+    } else if (!paymentTableMissing) {
       const missingPayments = fallback.paymentEntries
         .map((entry) => ({
           patient_id: patientIdMap.get(entry.patient_id) ?? null,
@@ -699,7 +940,7 @@ export async function getClinicDashboardData(): Promise<ClinicDashboardData> {
     const serverSupabase = getServerSupabaseClient();
     const serverData = await loadClinicRows(serverSupabase);
 
-    if (shouldEnsureServerSeed(serverData)) {
+    if (hasServerSupabaseServiceRole() && shouldEnsureServerSeed(serverData)) {
       const seededServerData = await ensureSeedClinicDataOnServer(serverSupabase);
       if (hasClinicData(seededServerData)) {
         return seededServerData;
