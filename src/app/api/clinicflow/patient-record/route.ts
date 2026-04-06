@@ -54,7 +54,7 @@ export async function GET(request: Request) {
 
     const resolvedPatientId = isUuid(resolvedDashboardPatientId)
       ? resolvedDashboardPatientId
-      : patientId;
+      : (dashboardPatient && isUuid(dashboardPatient.id) ? dashboardPatient.id : patientId);
 
     const [patientResult, journalResult, paymentsResult] = await Promise.all([
       isUuid(resolvedPatientId)

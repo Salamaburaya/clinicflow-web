@@ -1,5 +1,8 @@
 import { getSupabaseClient } from "@/lib/supabase";
-import { getServerSupabaseClient } from "@/lib/supabase-server";
+import {
+  getServerSupabaseClient,
+  hasServerSupabaseServiceRole,
+} from "@/lib/supabase-server";
 import {
   buildPatientNotesValue,
   getPatientPaymentEntriesFromNotes,
@@ -937,7 +940,7 @@ export async function getClinicDashboardData(): Promise<ClinicDashboardData> {
     const serverSupabase = getServerSupabaseClient();
     const serverData = await loadClinicRows(serverSupabase);
 
-    if (shouldEnsureServerSeed(serverData)) {
+    if (hasServerSupabaseServiceRole() && shouldEnsureServerSeed(serverData)) {
       const seededServerData = await ensureSeedClinicDataOnServer(serverSupabase);
       if (hasClinicData(seededServerData)) {
         return seededServerData;
