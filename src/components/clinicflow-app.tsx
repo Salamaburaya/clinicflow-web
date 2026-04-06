@@ -14,7 +14,7 @@ import {
 } from "@/lib/clinicflow-access";
 import { normalizeWhatsAppPhone } from "@/lib/phone";
 import { PatientProfileWorkspace } from "@/components/patient-profile-workspace";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Therapist = {
   id: string;
@@ -744,7 +744,6 @@ export function ClinicFlowApp({
   const [selectedPatientId, setSelectedPatientId] = useState(
     initialSelectedPatientId,
   );
-  const previousFocusedPatientIdRef = useRef(focusedPatientId);
   const effectiveSelectedPatientId = selectedPatientId || focusedPatientId || "";
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [showPatientDialog, setShowPatientDialog] = useState(false);
@@ -829,17 +828,6 @@ export function ClinicFlowApp({
 
   const isPatientsDirectoryMode = displayMode === "patients";
   const isPatientRecordMode = displayMode === "patient-record";
-
-  useEffect(() => {
-    if (!focusedPatientId) {
-      return;
-    }
-
-    if (previousFocusedPatientIdRef.current !== focusedPatientId) {
-      previousFocusedPatientIdRef.current = focusedPatientId;
-      setSelectedPatientId(focusedPatientId);
-    }
-  }, [focusedPatientId]);
 
   const selectedPatient = isPatientRecordMode
     ? patients.find((patient) => patient.id === effectiveSelectedPatientId)
@@ -1120,7 +1108,13 @@ export function ClinicFlowApp({
       return;
     }
 
-    void refreshPatientRecord(patientId);
+    const timeoutId = window.setTimeout(() => {
+      void refreshPatientRecord(patientId);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [refreshPatientRecord, selectedPatient?.id]);
 
   useEffect(() => {
@@ -2366,6 +2360,7 @@ export function ClinicFlowApp({
                     </div>
 
                     <PatientProfileWorkspace
+                      key={selectedPatient?.id ?? "patient-workspace-empty"}
                       patient={selectedPatient}
                       appointments={selectedPatientAppointments}
                       payments={selectedPatientPayments}
@@ -2561,6 +2556,7 @@ export function ClinicFlowApp({
 
                 {displayMode === "full" ? (
                   <PatientProfileWorkspace
+                    key={selectedPatient?.id ?? "patient-workspace-empty"}
                     patient={selectedPatient}
                     appointments={selectedPatientAppointments}
                     payments={selectedPatientPayments}

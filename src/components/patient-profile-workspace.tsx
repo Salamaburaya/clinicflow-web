@@ -211,6 +211,16 @@ export function PatientProfileWorkspace({
     };
   }, []);
 
+  function resetPaymentForm() {
+    setEditingPaymentId("");
+    setPaymentForm({
+      amount: "",
+      method: "אשראי",
+      category: "מפגש טיפול",
+      note: "",
+    });
+  }
+
   if (!patient) {
     return (
       <article className="card patient-workspace-card">
@@ -227,32 +237,6 @@ export function PatientProfileWorkspace({
   const patientAge = getPatientAge(patient.birth_date);
   const paymentBalance = patient.payment_balance ?? 0;
   const latestPayment = payments[0];
-
-  function resetPaymentForm() {
-    setEditingPaymentId("");
-    setPaymentForm({
-      amount: "",
-      method: "אשראי",
-      category: "מפגש טיפול",
-      note: "",
-    });
-  }
-
-  useEffect(() => {
-    resetPaymentForm();
-  }, [patient.id]);
-
-  useEffect(() => {
-    if (!editingPaymentId) {
-      return;
-    }
-
-    const paymentStillExists = payments.some((payment) => payment.id === editingPaymentId);
-
-    if (!paymentStillExists) {
-      resetPaymentForm();
-    }
-  }, [editingPaymentId, payments]);
 
   const overviewItems = [
     {
