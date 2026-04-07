@@ -1392,7 +1392,7 @@ export function ClinicFlowApp({
     setAddPatientForm(defaultAddPatientForm);
     setEditingPatientId("");
     setShowPatientDialog(false);
-    setActiveSection("patients");
+    navigateToSection("patients");
     setIsAddingPatient(false);
     setPatientSaveStatus(
       editingPatientId ? "פרטי המטופל נשמרו בהצלחה" : "המטופל נשמר בהצלחה",
@@ -1494,6 +1494,20 @@ export function ClinicFlowApp({
       patient_id: selectedPatient?.id ?? "",
       therapist_id: selectedPatient?.therapist_id ?? "",
     });
+  }
+
+  function navigateToSection(nextSection: AppSection) {
+    if (resolvedActiveSection === "patients" && nextSection !== "patients") {
+      setSearch("");
+    }
+
+    closePatientDialog();
+    closeTherapistDialog();
+    closeJournalDialog();
+    closeAppointmentDialog();
+    setDeleteStatus("");
+    setBillingSaveStatus("");
+    setActiveSection(nextSection);
   }
 
   function openAddPatientDialog() {
@@ -1752,7 +1766,7 @@ export function ClinicFlowApp({
     setAppointmentSaveStatus(
       editingAppointmentId ? "התור עודכן בהצלחה" : "הטיפול נקבע בהצלחה",
     );
-    setActiveSection(isPatientRecordMode ? "patients" : "appointments");
+    navigateToSection(isPatientRecordMode ? "patients" : "appointments");
   }
 
   function handleEditAppointment(appointment: Appointment) {
@@ -1773,7 +1787,7 @@ export function ClinicFlowApp({
     });
     setAppointmentSaveStatus("");
     setShowAppointmentDialog(true);
-    setActiveSection(isPatientRecordMode ? "patients" : "appointments");
+    navigateToSection(isPatientRecordMode ? "patients" : "appointments");
   }
 
   async function handleQuickStatusSave(patientId: string) {
@@ -1920,7 +1934,7 @@ export function ClinicFlowApp({
     });
     setAppointmentSaveStatus("");
     setShowAppointmentDialog(true);
-    setActiveSection(isPatientRecordMode ? "patients" : "appointments");
+    navigateToSection(isPatientRecordMode ? "patients" : "appointments");
   }
 
   function getPatientRecordHref(patientId: string) {
@@ -2003,7 +2017,7 @@ export function ClinicFlowApp({
     });
     setAppointmentSaveStatus("");
     setShowAppointmentDialog(true);
-    setActiveSection("appointments");
+    navigateToSection("appointments");
   }
 
   function handleJournalTemplateChange(templateKey: string) {
@@ -2266,7 +2280,7 @@ export function ClinicFlowApp({
                     key={key}
                     className={`nav-link ${resolvedActiveSection === key ? "active" : ""}`}
                     data-section={key}
-                    onClick={() => setActiveSection(key)}
+                    onClick={() => navigateToSection(key)}
                     type="button"
                   >
                     {label}
