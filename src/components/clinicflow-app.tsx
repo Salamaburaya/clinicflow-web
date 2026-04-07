@@ -1471,6 +1471,30 @@ export function ClinicFlowApp({
     setPatientSaveStatus("");
   }
 
+  function closeTherapistDialog() {
+    setShowTherapistDialog(false);
+    setEditingTherapistId("");
+    setAddTherapistForm(defaultAddTherapistForm);
+    setTherapistSaveStatus("");
+  }
+
+  function closeJournalDialog() {
+    setShowJournalDialog(false);
+    setJournalSaveStatus("");
+    setJournalForm(buildJournalForm(selectedPatient));
+  }
+
+  function closeAppointmentDialog() {
+    setShowAppointmentDialog(false);
+    setEditingAppointmentId("");
+    setAppointmentSaveStatus("");
+    setAppointmentForm({
+      ...defaultAppointmentForm,
+      patient_id: selectedPatient?.id ?? "",
+      therapist_id: selectedPatient?.therapist_id ?? "",
+    });
+  }
+
   function openAddPatientDialog() {
     setEditingPatientId("");
     setAddPatientForm(defaultAddPatientForm);
@@ -3635,7 +3659,7 @@ export function ClinicFlowApp({
       ) : null}
 
       {showTherapistDialog ? (
-        <div className="dialog-backdrop" onClick={() => setShowTherapistDialog(false)}>
+        <div className="dialog-backdrop" onClick={closeTherapistDialog}>
           <div className="dialog-card" onClick={(event) => event.stopPropagation()}>
             <form className="dialog-form" onSubmit={handleAddTherapistSubmit}>
               <div className="dialog-head">
@@ -3644,10 +3668,7 @@ export function ClinicFlowApp({
                   type="button"
                   className="icon-btn"
                   onClick={() => {
-                    setShowTherapistDialog(false);
-                    setEditingTherapistId("");
-                    setAddTherapistForm(defaultAddTherapistForm);
-                    setTherapistSaveStatus("");
+                    closeTherapistDialog();
                   }}
                 >
                   סגירה
@@ -3726,7 +3747,7 @@ export function ClinicFlowApp({
       ) : null}
 
       {showJournalDialog && selectedPatient ? (
-        <div className="dialog-backdrop" onClick={() => setShowJournalDialog(false)}>
+        <div className="dialog-backdrop" onClick={closeJournalDialog}>
           <div
             className="dialog-card journal-dialog-card"
             onClick={(event) => event.stopPropagation()}
@@ -3740,7 +3761,7 @@ export function ClinicFlowApp({
                 <button
                   type="button"
                   className="icon-btn"
-                  onClick={() => setShowJournalDialog(false)}
+                  onClick={closeJournalDialog}
                 >
                   סגירה
                 </button>
@@ -3773,7 +3794,7 @@ export function ClinicFlowApp({
                     className="ghost-btn summary-action"
                     type="button"
                     onClick={() => {
-                      setShowJournalDialog(false);
+                      closeJournalDialog();
                       handleCreateAppointmentForPatient(selectedPatient.id);
                     }}
                   >
@@ -3973,7 +3994,7 @@ export function ClinicFlowApp({
                       className="secondary-btn"
                       type="button"
                       onClick={() => {
-                        setShowJournalDialog(false);
+                        closeJournalDialog();
                         handleCreateAppointmentForPatient(selectedPatient.id);
                       }}
                     >
@@ -4015,7 +4036,7 @@ export function ClinicFlowApp({
       ) : null}
 
       {showAppointmentDialog ? (
-        <div className="dialog-backdrop" onClick={() => setShowAppointmentDialog(false)}>
+        <div className="dialog-backdrop" onClick={closeAppointmentDialog}>
           <div
             className="dialog-card journal-dialog-card"
             onClick={(event) => event.stopPropagation()}
@@ -4031,7 +4052,7 @@ export function ClinicFlowApp({
                 <button
                   type="button"
                   className="icon-btn"
-                  onClick={() => setShowAppointmentDialog(false)}
+                  onClick={closeAppointmentDialog}
                 >
                   סגירה
                 </button>
@@ -4240,14 +4261,7 @@ export function ClinicFlowApp({
                     className="secondary-btn"
                     type="button"
                     onClick={() => {
-                      setEditingAppointmentId("");
-                      setAppointmentForm({
-                        ...defaultAppointmentForm,
-                        patient_id: selectedPatient?.id ?? "",
-                        therapist_id: selectedPatient?.therapist_id ?? "",
-                      });
-                      setAppointmentSaveStatus("");
-                      setShowAppointmentDialog(false);
+                      closeAppointmentDialog();
                     }}
                   >
                     ביטול
