@@ -103,6 +103,37 @@ function buildInvalidIdentifierResponse(entity: string) {
   );
 }
 
+function normalizePatientStatus(status: unknown) {
+  if (typeof status !== "string") {
+    return null;
+  }
+
+  const trimmed = status.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const normalized = trimmed.toLowerCase();
+  const aliases: Record<string, string> = {
+    "חדש": "חדש",
+    new: "חדש",
+    intake: "חדש",
+    pending: "חדש",
+    "בטיפול": "בטיפול",
+    active: "בטיפול",
+    active_treatment: "בטיפול",
+    in_progress: "בטיפול",
+    ongoing: "בטיפול",
+    "מעקב": "מעקב",
+    followup: "מעקב",
+    "follow-up": "מעקב",
+    monitoring: "מעקב",
+    review: "מעקב",
+  };
+
+  return aliases[normalized] ?? null;
+}
+
 function buildTherapistServerPayload(payload: Record<string, unknown>) {
   return {
     full_name:
@@ -255,12 +286,19 @@ export async function POST(request: Request) {
 
         const resolvedPayload = {
           ...body.payload,
+          status: normalizePatientStatus(body.payload.status),
           therapist_id: await resolveStoredTherapistId(
             typeof body.payload.therapist_id === "string"
               ? body.payload.therapist_id
               : null,
           ),
         };
+        if (!resolvedPayload.status) {
+          return NextResponse.json(
+            { ok: false, error: "Patient status is invalid" },
+            { status: 400 },
+          );
+        }
         if (
           resolvedPayload.therapist_id
           && typeof resolvedPayload.therapist_id === "string"
@@ -378,9 +416,16 @@ export async function POST(request: Request) {
 
       case "saveJournal": {
         const resolvedPatientId = await resolveStoredPatientId(body.patientId);
+        const normalizedJournalStatus = normalizePatientStatus(body.patientPayload.status);
 
         if (!resolvedPatientId || !isUuid(resolvedPatientId)) {
           return buildInvalidLookupResponse("Patient");
+        }
+        if (!normalizedJournalStatus) {
+          return NextResponse.json(
+            { ok: false, error: "Patient status is invalid" },
+            { status: 400 },
+          );
         }
         const resolvedJournalTherapistId = await resolveStoredTherapistId(
           typeof body.patientPayload.therapist_id === "string"
@@ -410,6 +455,7 @@ export async function POST(request: Request) {
         const nextPatientPayload = buildPatientServerPayload(
           {
             ...body.patientPayload,
+            status: normalizedJournalStatus,
             therapist_id: resolvedJournalTherapistId,
           },
           currentPatientResult.data.notes,
@@ -831,14 +877,22 @@ export async function POST(request: Request) {
 
       case "updatePatientStatus": {
         const resolvedPatientId = await resolveStoredPatientId(body.patientId);
+        const normalizedStatus = normalizePatientStatus(body.status);
 
         if (!resolvedPatientId || !isUuid(resolvedPatientId)) {
           return buildInvalidLookupResponse("Patient");
         }
 
+        if (!normalizedStatus) {
+          return NextResponse.json(
+            { ok: false, error: "Patient status is invalid" },
+            { status: 400 },
+          );
+        }
+
         const { data, error } = await supabase
           .from("patients")
-          .update({ status: body.status })
+          .update({ status: normalizedStatus })
           .eq("id", resolvedPatientId)
           .select("*")
           .single();
