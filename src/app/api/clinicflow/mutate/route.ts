@@ -89,6 +89,20 @@ function isUuid(value: string) {
   );
 }
 
+function buildInvalidLookupResponse(entity: string) {
+  return NextResponse.json(
+    { ok: false, error: `${entity} lookup failed` },
+    { status: 404 },
+  );
+}
+
+function buildInvalidIdentifierResponse(entity: string) {
+  return NextResponse.json(
+    { ok: false, error: `${entity} identifier is invalid` },
+    { status: 400 },
+  );
+}
+
 function buildTherapistServerPayload(payload: Record<string, unknown>) {
   return {
     full_name:
@@ -234,6 +248,11 @@ export async function POST(request: Request) {
     switch (body.action) {
       case "savePatient": {
         const resolvedEditingPatientId = await resolveStoredPatientId(body.editingPatientId);
+
+        if (body.editingPatientId && (!resolvedEditingPatientId || !isUuid(resolvedEditingPatientId))) {
+          return buildInvalidLookupResponse("Patient");
+        }
+
         const resolvedPayload = {
           ...body.payload,
           therapist_id: await resolveStoredTherapistId(
@@ -242,6 +261,13 @@ export async function POST(request: Request) {
               : null,
           ),
         };
+        if (
+          resolvedPayload.therapist_id
+          && typeof resolvedPayload.therapist_id === "string"
+          && !isUuid(resolvedPayload.therapist_id)
+        ) {
+          return buildInvalidLookupResponse("Therapist");
+        }
         const existingPatientResult = resolvedEditingPatientId
           ? await supabase.from("patients").select("*").eq("id", resolvedEditingPatientId).single()
           : null;
@@ -271,6 +297,10 @@ export async function POST(request: Request) {
       }
 
       case "saveTherapist": {
+        if (body.editingTherapistId && !isUuid(body.editingTherapistId)) {
+          return buildInvalidIdentifierResponse("Therapist");
+        }
+
         const payload = buildTherapistServerPayload(body.payload);
         const query = body.editingTherapistId
           ? supabase
@@ -296,8 +326,8 @@ export async function POST(request: Request) {
       case "deleteTherapist": {
         const resolvedTherapistId = await resolveStoredTherapistId(body.therapistId);
 
-        if (!resolvedTherapistId) {
-          return NextResponse.json({ ok: false, error: "Therapist lookup failed" }, { status: 500 });
+        if (!resolvedTherapistId || !isUuid(resolvedTherapistId)) {
+          return buildInvalidLookupResponse("Therapist");
         }
 
         const affectedPatientsResult = await supabase
@@ -349,8 +379,16 @@ export async function POST(request: Request) {
       case "saveJournal": {
         const resolvedPatientId = await resolveStoredPatientId(body.patientId);
 
-        if (!resolvedPatientId) {
-          return NextResponse.json({ ok: false, error: "Patient lookup failed" }, { status: 500 });
+        if (!resolvedPatientId || !isUuid(resolvedPatientId)) {
+          return buildInvalidLookupResponse("Patient");
+        }
+        const resolvedJournalTherapistId = await resolveStoredTherapistId(
+          typeof body.patientPayload.therapist_id === "string"
+            ? body.patientPayload.therapist_id
+            : null,
+        );
+        if (resolvedJournalTherapistId && !isUuid(resolvedJournalTherapistId)) {
+          return buildInvalidLookupResponse("Therapist");
         }
 
         const currentPatientResult = await supabase
@@ -372,11 +410,7 @@ export async function POST(request: Request) {
         const nextPatientPayload = buildPatientServerPayload(
           {
             ...body.patientPayload,
-            therapist_id: await resolveStoredTherapistId(
-              typeof body.patientPayload.therapist_id === "string"
-                ? body.patientPayload.therapist_id
-                : null,
-            ),
+            therapist_id: resolvedJournalTherapistId,
           },
           currentPatientResult.data.notes,
         );
@@ -400,14 +434,18 @@ export async function POST(request: Request) {
         let journalEntry = null;
 
         if (body.journalPayload) {
+          const resolvedEntryTherapistId = await resolveStoredTherapistId(
+            typeof body.journalPayload.therapist_id === "string"
+              ? body.journalPayload.therapist_id
+              : null,
+          );
+          if (resolvedEntryTherapistId && !isUuid(resolvedEntryTherapistId)) {
+            return buildInvalidLookupResponse("Therapist");
+          }
           const normalizedJournalPayload = {
             ...body.journalPayload,
             patient_id: resolvedPatientId,
-            therapist_id: await resolveStoredTherapistId(
-              typeof body.journalPayload.therapist_id === "string"
-                ? body.journalPayload.therapist_id
-                : null,
-            ),
+            therapist_id: resolvedEntryTherapistId,
           };
           const journalResult = await supabase
             .from("journal_entries")
@@ -443,8 +481,8 @@ export async function POST(request: Request) {
       case "savePayment": {
         const resolvedPatientId = await resolveStoredPatientId(body.patientId);
 
-        if (!resolvedPatientId) {
-          return NextResponse.json({ ok: false, error: "Patient lookup failed" }, { status: 500 });
+        if (!resolvedPatientId || !isUuid(resolvedPatientId)) {
+          return buildInvalidLookupResponse("Patient");
         }
 
         const patientResult = await supabase
@@ -529,10 +567,14 @@ export async function POST(request: Request) {
       }
 
       case "updatePayment": {
+        if (!isUuid(body.paymentId)) {
+          return buildInvalidIdentifierResponse("Payment");
+        }
+
         const resolvedPatientId = await resolveStoredPatientId(body.patientId);
 
-        if (!resolvedPatientId) {
-          return NextResponse.json({ ok: false, error: "Patient lookup failed" }, { status: 500 });
+        if (!resolvedPatientId || !isUuid(resolvedPatientId)) {
+          return buildInvalidLookupResponse("Patient");
         }
 
         const patientResult = await supabase
@@ -569,7 +611,7 @@ export async function POST(request: Request) {
               ok: false,
               error: "Payment lookup failed",
             },
-            { status: 500 },
+            { status: 404 },
           );
         }
 
@@ -640,10 +682,14 @@ export async function POST(request: Request) {
       }
 
       case "deletePayment": {
+        if (!isUuid(body.paymentId)) {
+          return buildInvalidIdentifierResponse("Payment");
+        }
+
         const resolvedPatientId = await resolveStoredPatientId(body.patientId);
 
-        if (!resolvedPatientId) {
-          return NextResponse.json({ ok: false, error: "Patient lookup failed" }, { status: 500 });
+        if (!resolvedPatientId || !isUuid(resolvedPatientId)) {
+          return buildInvalidLookupResponse("Patient");
         }
 
         const patientResult = await supabase
@@ -680,7 +726,7 @@ export async function POST(request: Request) {
               ok: false,
               error: "Payment lookup failed",
             },
-            { status: 500 },
+            { status: 404 },
           );
         }
 
@@ -745,6 +791,23 @@ export async function POST(request: Request) {
               : null,
           ),
         };
+        if (body.editingAppointmentId && (!resolvedAppointmentId || !isUuid(resolvedAppointmentId))) {
+          return buildInvalidLookupResponse("Appointment");
+        }
+        if (
+          !normalizedPayload.patient_id
+          || typeof normalizedPayload.patient_id !== "string"
+          || !isUuid(normalizedPayload.patient_id)
+        ) {
+          return buildInvalidLookupResponse("Patient");
+        }
+        if (
+          normalizedPayload.therapist_id
+          && typeof normalizedPayload.therapist_id === "string"
+          && !isUuid(normalizedPayload.therapist_id)
+        ) {
+          return buildInvalidLookupResponse("Therapist");
+        }
         const query = resolvedAppointmentId
           ? supabase
               .from("appointments")
@@ -769,8 +832,8 @@ export async function POST(request: Request) {
       case "updatePatientStatus": {
         const resolvedPatientId = await resolveStoredPatientId(body.patientId);
 
-        if (!resolvedPatientId) {
-          return NextResponse.json({ ok: false, error: "Patient lookup failed" }, { status: 500 });
+        if (!resolvedPatientId || !isUuid(resolvedPatientId)) {
+          return buildInvalidLookupResponse("Patient");
         }
 
         const { data, error } = await supabase
@@ -793,8 +856,8 @@ export async function POST(request: Request) {
       case "deleteAppointment": {
         const resolvedAppointmentId = await resolveStoredAppointmentId(body.appointmentId);
 
-        if (!resolvedAppointmentId) {
-          return NextResponse.json({ ok: false, error: "Appointment lookup failed" }, { status: 500 });
+        if (!resolvedAppointmentId || !isUuid(resolvedAppointmentId)) {
+          return buildInvalidLookupResponse("Appointment");
         }
 
         const { error } = await supabase
@@ -812,8 +875,8 @@ export async function POST(request: Request) {
       case "deletePatient": {
         const resolvedPatientId = await resolveStoredPatientId(body.patientId);
 
-        if (!resolvedPatientId) {
-          return NextResponse.json({ ok: false, error: "Patient lookup failed" }, { status: 500 });
+        if (!resolvedPatientId || !isUuid(resolvedPatientId)) {
+          return buildInvalidLookupResponse("Patient");
         }
 
         const journalDeleteResult = await supabase
