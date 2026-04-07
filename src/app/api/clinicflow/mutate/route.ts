@@ -134,6 +134,83 @@ function normalizePatientStatus(status: unknown) {
   return aliases[normalized] ?? null;
 }
 
+function normalizePatientDiscipline(discipline: unknown) {
+  if (typeof discipline !== "string") {
+    return null;
+  }
+
+  const trimmed = discipline.trim();
+  if (trimmed === "פיזיותרפיה" || trimmed === "ריפוי בעיסוק") {
+    return trimmed;
+  }
+
+  return null;
+}
+
+function normalizeTherapistProfession(profession: unknown) {
+  return normalizePatientDiscipline(profession);
+}
+
+function normalizeRequiredText(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeAppointmentStatus(status: unknown) {
+  if (typeof status !== "string") {
+    return null;
+  }
+
+  const trimmed = status.trim().toLowerCase();
+  const aliases: Record<string, string> = {
+    scheduled: "scheduled",
+    confirmed: "scheduled",
+    completed: "completed",
+    done: "completed",
+    cancelled: "cancelled",
+    canceled: "cancelled",
+    no_show: "no_show",
+    "no-show": "no_show",
+  };
+
+  return aliases[trimmed] ?? null;
+}
+
+function normalizeAppointmentDate(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function buildAppointmentServerPayload(payload: Record<string, unknown>) {
+  return {
+    patient_id: payload.patient_id,
+    therapist_id: payload.therapist_id ?? null,
+    appointment_at: payload.appointment_at,
+    room:
+      typeof payload.room === "string" && payload.room.trim().length > 0
+        ? payload.room.trim()
+        : null,
+    status: payload.status,
+    summary:
+      typeof payload.summary === "string" && payload.summary.trim().length > 0
+        ? payload.summary.trim()
+        : null,
+  };
+}
+
 function buildTherapistServerPayload(payload: Record<string, unknown>) {
   return {
     full_name:
@@ -279,6 +356,8 @@ export async function POST(request: Request) {
     switch (body.action) {
       case "savePatient": {
         const resolvedEditingPatientId = await resolveStoredPatientId(body.editingPatientId);
+        const normalizedPatientStatus = normalizePatientStatus(body.payload.status);
+        const normalizedPatientDiscipline = normalizePatientDiscipline(body.payload.discipline);
 
         if (body.editingPatientId && (!resolvedEditingPatientId || !isUuid(resolvedEditingPatientId))) {
           return buildInvalidLookupResponse("Patient");
@@ -286,16 +365,29 @@ export async function POST(request: Request) {
 
         const resolvedPayload = {
           ...body.payload,
-          status: normalizePatientStatus(body.payload.status),
+          status: normalizedPatientStatus,
+          discipline: normalizedPatientDiscipline,
           therapist_id: await resolveStoredTherapistId(
             typeof body.payload.therapist_id === "string"
               ? body.payload.therapist_id
               : null,
           ),
         };
+        if (!normalizeRequiredText(body.payload.full_name)) {
+          return NextResponse.json(
+            { ok: false, error: "Patient full name is required" },
+            { status: 400 },
+          );
+        }
         if (!resolvedPayload.status) {
           return NextResponse.json(
             { ok: false, error: "Patient status is invalid" },
+            { status: 400 },
+          );
+        }
+        if (!resolvedPayload.discipline) {
+          return NextResponse.json(
+            { ok: false, error: "Patient discipline is invalid" },
             { status: 400 },
           );
         }
@@ -337,6 +429,18 @@ export async function POST(request: Request) {
       case "saveTherapist": {
         if (body.editingTherapistId && !isUuid(body.editingTherapistId)) {
           return buildInvalidIdentifierResponse("Therapist");
+        }
+        if (!normalizeRequiredText(body.payload.full_name)) {
+          return NextResponse.json(
+            { ok: false, error: "Therapist full name is required" },
+            { status: 400 },
+          );
+        }
+        if (!normalizeTherapistProfession(body.payload.profession)) {
+          return NextResponse.json(
+            { ok: false, error: "Therapist profession is invalid" },
+            { status: 400 },
+          );
         }
 
         const payload = buildTherapistServerPayload(body.payload);
@@ -526,9 +630,30 @@ export async function POST(request: Request) {
 
       case "savePayment": {
         const resolvedPatientId = await resolveStoredPatientId(body.patientId);
+        const normalizedAmount = Number(body.amount);
+        const normalizedMethod = normalizeRequiredText(body.method);
+        const normalizedCategory = normalizeRequiredText(body.category);
 
         if (!resolvedPatientId || !isUuid(resolvedPatientId)) {
           return buildInvalidLookupResponse("Patient");
+        }
+        if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+          return NextResponse.json(
+            { ok: false, error: "Payment amount is invalid" },
+            { status: 400 },
+          );
+        }
+        if (!normalizedMethod) {
+          return NextResponse.json(
+            { ok: false, error: "Payment method is required" },
+            { status: 400 },
+          );
+        }
+        if (!normalizedCategory) {
+          return NextResponse.json(
+            { ok: false, error: "Payment category is required" },
+            { status: 400 },
+          );
         }
 
         const patientResult = await supabase
@@ -561,14 +686,14 @@ export async function POST(request: Request) {
           patient_id: resolvedPatientId,
           created_at: new Date().toISOString(),
           payment_date: new Date().toISOString(),
-          amount: Number(body.amount),
-          method: body.method,
+          amount: normalizedAmount,
+          method: normalizedMethod,
           status: "completed",
-          category: body.category,
+          category: normalizedCategory,
           note: body.note?.trim() || null,
         };
         const nextBalance =
-          Number(currentBalance) - Number(body.amount);
+          Number(currentBalance) - normalizedAmount;
         const nextNotes = buildPatientNotesValue(patientResult.data.notes, {
           paymentBalance: nextBalance,
           paymentEntries: [nextPaymentEntry, ...currentBilling.entries],
@@ -618,9 +743,30 @@ export async function POST(request: Request) {
         }
 
         const resolvedPatientId = await resolveStoredPatientId(body.patientId);
+        const normalizedAmount = Number(body.amount);
+        const normalizedMethod = normalizeRequiredText(body.method);
+        const normalizedCategory = normalizeRequiredText(body.category);
 
         if (!resolvedPatientId || !isUuid(resolvedPatientId)) {
           return buildInvalidLookupResponse("Patient");
+        }
+        if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+          return NextResponse.json(
+            { ok: false, error: "Payment amount is invalid" },
+            { status: 400 },
+          );
+        }
+        if (!normalizedMethod) {
+          return NextResponse.json(
+            { ok: false, error: "Payment method is required" },
+            { status: 400 },
+          );
+        }
+        if (!normalizedCategory) {
+          return NextResponse.json(
+            { ok: false, error: "Payment category is required" },
+            { status: 400 },
+          );
         }
 
         const patientResult = await supabase
@@ -663,14 +809,14 @@ export async function POST(request: Request) {
 
         const nextPaymentEntry: StoredPaymentEntry = {
           ...existingPayment,
-          amount: Number(body.amount),
-          method: body.method,
-          category: body.category,
+          amount: normalizedAmount,
+          method: normalizedMethod,
+          category: normalizedCategory,
           note: body.note?.trim() || null,
         };
 
         const previousAmount = Number(existingPayment.amount ?? 0);
-        const nextAmount = Number(body.amount);
+        const nextAmount = normalizedAmount;
         const nextBalance =
           Number(parsePatientNotes(patientResult.data.notes).paymentBalance ?? 0)
           - (nextAmount - previousAmount);
@@ -702,9 +848,9 @@ export async function POST(request: Request) {
         const mirrorUpdateResult = await supabase
           .from("payment_entries")
           .update({
-            amount: body.amount,
-            method: body.method,
-            category: body.category,
+            amount: normalizedAmount,
+            method: normalizedMethod,
+            category: normalizedCategory,
             note: body.note?.trim() || null,
           })
           .eq("id", body.paymentId)
@@ -824,8 +970,10 @@ export async function POST(request: Request) {
 
       case "saveAppointment": {
         const resolvedAppointmentId = await resolveStoredAppointmentId(body.editingAppointmentId);
+        const normalizedAppointmentDate = normalizeAppointmentDate(body.payload.appointment_at);
+        const normalizedAppointmentStatus = normalizeAppointmentStatus(body.payload.status);
         const normalizedPayload = {
-          ...body.payload,
+          ...buildAppointmentServerPayload(body.payload),
           patient_id: await resolveStoredPatientId(
             typeof body.payload.patient_id === "string"
               ? body.payload.patient_id
@@ -836,6 +984,8 @@ export async function POST(request: Request) {
               ? body.payload.therapist_id
               : null,
           ),
+          appointment_at: normalizedAppointmentDate,
+          status: normalizedAppointmentStatus,
         };
         if (body.editingAppointmentId && (!resolvedAppointmentId || !isUuid(resolvedAppointmentId))) {
           return buildInvalidLookupResponse("Appointment");
@@ -846,6 +996,18 @@ export async function POST(request: Request) {
           || !isUuid(normalizedPayload.patient_id)
         ) {
           return buildInvalidLookupResponse("Patient");
+        }
+        if (!normalizedPayload.appointment_at) {
+          return NextResponse.json(
+            { ok: false, error: "Appointment date is invalid" },
+            { status: 400 },
+          );
+        }
+        if (!normalizedPayload.status) {
+          return NextResponse.json(
+            { ok: false, error: "Appointment status is invalid" },
+            { status: 400 },
+          );
         }
         if (
           normalizedPayload.therapist_id
