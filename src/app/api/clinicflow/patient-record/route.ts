@@ -41,6 +41,9 @@ export async function GET(request: Request) {
     const dashboardPatient =
       dashboardData.patients.find((patient) => patient.id === resolvedDashboardPatientId)
       ?? dashboardData.patients.find((patient) => patient.full_name === requestedSeedFullName);
+    const fallbackAppointments = dashboardPatient
+      ? dashboardData.appointments.filter((appointment) => appointment.patient_id === dashboardPatient.id)
+      : [];
     const fallbackPaymentEntries = dashboardPatient
       ? dashboardData.paymentEntries.filter((entry) => entry.patient_id === dashboardPatient.id)
       : [];
@@ -56,7 +59,7 @@ export async function GET(request: Request) {
       ? resolvedDashboardPatientId
       : (dashboardPatient && isUuid(dashboardPatient.id) ? dashboardPatient.id : patientId);
 
-    const [patientResult, journalResult, paymentsResult] = await Promise.all([
+    const [patientResult, journalResult, appointmentsResult, paymentsResult] = await Promise.all([
       isUuid(resolvedPatientId)
         ? supabase.from("patients").select("*").eq("id", resolvedPatientId).single()
         : Promise.resolve({ data: null, error: null }),
@@ -68,6 +71,13 @@ export async function GET(request: Request) {
             .order("entry_date", { ascending: false })
             .order("created_at", { ascending: false })
             .limit(6)
+        : Promise.resolve({ data: [], error: null }),
+      isUuid(resolvedPatientId)
+        ? supabase
+            .from("appointments")
+            .select("*")
+            .eq("patient_id", resolvedPatientId)
+            .order("appointment_at", { ascending: true })
         : Promise.resolve({ data: [], error: null }),
       isUuid(resolvedPatientId)
         ? supabase
@@ -102,6 +112,10 @@ export async function GET(request: Request) {
     const finalPaymentEntries = resolvedPaymentEntries.length > 0
       ? resolvedPaymentEntries
       : fallbackPaymentEntries;
+    const finalAppointments =
+      (appointmentsResult.data as typeof fallbackAppointments | null | undefined)?.length
+        ? ((appointmentsResult.data ?? []) as typeof fallbackAppointments)
+        : fallbackAppointments;
     const paymentTableMissing =
       paymentsResult.error?.message?.includes("Could not find the table 'public.payment_entries'")
       ?? false;
@@ -110,9 +124,11 @@ export async function GET(request: Request) {
       ok: true,
       patient: hydratedPatient,
       journalEntries: journalResult.data ?? [],
+      appointments: finalAppointments,
       paymentEntries: finalPaymentEntries,
       errors: {
         journalEntries: journalResult.error?.message ?? null,
+        appointments: appointmentsResult.error?.message ?? null,
         paymentEntries:
           paymentTableMissing && finalPaymentEntries.length > 0
             ? null

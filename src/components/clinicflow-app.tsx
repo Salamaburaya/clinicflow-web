@@ -677,6 +677,28 @@ function replacePatientPaymentEntries(
   ]);
 }
 
+function replacePatientAppointments(
+  currentAppointments: Appointment[],
+  nextAppointments: Appointment[],
+  aliases: string[] = [],
+) {
+  const patientIds = new Set(
+    [...aliases, ...nextAppointments.map((appointment) => appointment.patient_id)].filter(Boolean),
+  );
+  const nextAppointmentIds = new Set(nextAppointments.map((appointment) => appointment.id));
+
+  return [
+    ...currentAppointments.filter(
+      (appointment) =>
+        !patientIds.has(appointment.patient_id) && !nextAppointmentIds.has(appointment.id),
+    ),
+    ...nextAppointments,
+  ].sort(
+    (left, right) =>
+      new Date(left.appointment_at).getTime() - new Date(right.appointment_at).getTime(),
+  );
+}
+
 function resolveSelectedPatientIdentity(
   currentPatientId: string,
   nextPatient: Patient,
@@ -1048,9 +1070,11 @@ export function ClinicFlowApp({
         ok?: boolean;
         patient?: Patient | null;
         journalEntries?: JournalEntry[];
+        appointments?: Appointment[];
         paymentEntries?: PaymentEntry[];
         errors?: {
           journalEntries?: string | null;
+          appointments?: string | null;
           paymentEntries?: string | null;
         };
       };
@@ -1064,6 +1088,10 @@ export function ClinicFlowApp({
         setJournalSaveStatus("לא ניתן לטעון את היסטוריית היומן כרגע");
       } else {
         setJournalEntries(result.journalEntries ?? []);
+      }
+
+      if (result.errors?.appointments) {
+        setAppointmentSaveStatus("לא ניתן לטעון את רשימת המפגשים כרגע");
       }
 
       const patientAliases = [requestedPatientId, ...aliases];
@@ -1089,6 +1117,16 @@ export function ClinicFlowApp({
           replacePatientPaymentEntries(
             current,
             result.paymentEntries!,
+            [resolvedPatientId, ...patientAliases],
+          ),
+        );
+      }
+
+      if (result.appointments) {
+        setAppointments((current) =>
+          replacePatientAppointments(
+            current,
+            result.appointments!,
             [resolvedPatientId, ...patientAliases],
           ),
         );
