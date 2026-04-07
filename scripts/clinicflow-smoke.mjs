@@ -67,9 +67,9 @@ async function main() {
   });
 
   await checkPage("/patients/seed-patient-noa", {
-    includes: ["תיק מטופל"],
+    includes: ["תיק מטופל", "נועה אלקיים"],
     excludes: ["invalid input syntax for type uuid"],
-    allowEmbeddedNotFoundTemplate: true,
+    allowEmbeddedNotFoundTemplate: false,
   });
 
   const api = await fetch(
