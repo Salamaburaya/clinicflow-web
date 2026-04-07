@@ -1835,6 +1835,7 @@ export function ClinicFlowApp({
   function handleSelectPatient(patientId: string) {
     const patient = patients.find((item) => item.id === patientId);
     setSelectedPatientId(patientId);
+    setDeleteStatus("");
     setBillingSaveStatus("");
     setJournalForm(buildJournalForm(patient));
     setAppointmentForm((current) => ({
@@ -1849,6 +1850,7 @@ export function ClinicFlowApp({
   function handleFocusPatient(patientId: string) {
     const patient = patients.find((item) => item.id === patientId);
     setSelectedPatientId(patientId);
+    setDeleteStatus("");
     setBillingSaveStatus("");
     setJournalForm(buildJournalForm(patient));
     setAppointmentForm((current) => ({
@@ -1862,6 +1864,7 @@ export function ClinicFlowApp({
   function handleCreateAppointmentForPatient(patientId: string) {
     const patient = patients.find((item) => item.id === patientId);
     setSelectedPatientId(patientId);
+    setDeleteStatus("");
     setBillingSaveStatus("");
     setEditingAppointmentId("");
     setAppointmentForm({
