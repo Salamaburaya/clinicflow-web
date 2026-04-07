@@ -6,6 +6,7 @@ export type StoredPaymentEntry = {
   created_at: string;
   payment_date: string;
   amount: number;
+  entry_kind?: "payment" | "charge";
   method: string;
   status: PaymentEntryStatus;
   category: string;
@@ -143,6 +144,10 @@ function normalizeStoredPaymentEntry(
     created_at: createdAt,
     payment_date: paymentDate,
     amount,
+    entry_kind:
+      value.entry_kind === "charge"
+        ? "charge"
+        : "payment",
     method,
     status,
     category,
@@ -286,9 +291,21 @@ export function mergePaymentEntries(
   const merged = new Map<string, StoredPaymentEntry>();
 
   [...tableEntries, ...noteEntries].forEach((entry) => {
-    if (!merged.has(entry.id)) {
-      merged.set(entry.id, entry);
-    }
+    const existingEntry = merged.get(entry.id);
+    merged.set(
+      entry.id,
+      existingEntry
+        ? {
+            ...existingEntry,
+            ...entry,
+            entry_kind: entry.entry_kind ?? existingEntry.entry_kind ?? "payment",
+            note: entry.note ?? existingEntry.note ?? null,
+          }
+        : {
+            ...entry,
+            entry_kind: entry.entry_kind ?? "payment",
+          },
+    );
   });
 
   return Array.from(merged.values()).sort((left, right) => {

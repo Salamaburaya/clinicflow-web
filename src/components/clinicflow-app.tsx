@@ -73,6 +73,7 @@ type PaymentEntry = {
   created_at: string;
   payment_date: string;
   amount: number;
+  entry_kind?: "payment" | "charge";
   method: string;
   status: "completed" | "pending" | "refunded";
   category: string;
@@ -163,6 +164,7 @@ type AddTherapistForm = {
 type AddPaymentInput = {
   patientId: string;
   amount: number;
+  entryKind: "payment" | "charge";
   method: string;
   category: string;
   note: string;
@@ -172,6 +174,7 @@ type UpdatePaymentInput = {
   paymentId: string;
   patientId: string;
   amount: number;
+  entryKind: "payment" | "charge";
   method: string;
   category: string;
   note: string;
@@ -2031,23 +2034,31 @@ export function ClinicFlowApp({
     }));
   }
 
-  async function handleAddPayment({ patientId, amount, method, category, note }: AddPaymentInput) {
+  async function handleAddPayment({
+    patientId,
+    amount,
+    entryKind,
+    method,
+    category,
+    note,
+  }: AddPaymentInput) {
     const normalizedAmount = Number(amount);
+    const normalizedEntryKind = entryKind === "charge" ? "charge" : "payment";
     const normalizedMethod = method.trim();
     const normalizedCategory = category.trim();
 
-    if (!patientId || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
-      setBillingSaveStatus("צריך להזין סכום תקין לפני שמירת תשלום.");
+    if (!patientId || !Number.isFinite(normalizedAmount) || normalizedAmount === 0) {
+      setBillingSaveStatus("צריך להזין סכום תקין לפני שמירת תנועה.");
       return false;
     }
 
     if (!isAllowedValue(normalizedMethod, paymentMethodOptions)) {
-      setBillingSaveStatus("צריך לבחור אמצעי תשלום תקין לפני שמירת תשלום.");
+      setBillingSaveStatus("צריך לבחור אמצעי תשלום תקין לפני שמירת תנועה.");
       return false;
     }
 
     if (!isAllowedValue(normalizedCategory, paymentCategoryOptions)) {
-      setBillingSaveStatus("צריך לבחור סוג חיוב תקין לפני שמירת תשלום.");
+      setBillingSaveStatus("צריך לבחור קטגוריה תקינה לפני שמירת תנועה.");
       return false;
     }
 
@@ -2060,7 +2071,8 @@ export function ClinicFlowApp({
     }>({
       action: "savePayment",
       patientId,
-      amount: normalizedAmount,
+      amount: Math.abs(normalizedAmount),
+      entryKind: normalizedEntryKind,
       method: normalizedMethod,
       category: normalizedCategory,
       note,
@@ -2068,8 +2080,8 @@ export function ClinicFlowApp({
     const savedPaymentEntry = mutationResult?.paymentEntry;
     const savedPatient = mutationResult?.patient;
     if (error || !savedPaymentEntry || !savedPatient) {
-      setDeleteStatus("לא ניתן לשמור את התשלום כרגע. התשלום לא נשמר בשרת.");
-      setBillingSaveStatus("לא ניתן לשמור את התשלום כרגע. נסה שוב בעוד רגע.");
+      setDeleteStatus("לא ניתן לשמור את התנועה הכספית כרגע. השינוי לא נשמר בשרת.");
+      setBillingSaveStatus("לא ניתן לשמור את התנועה הכספית כרגע. נסה שוב בעוד רגע.");
       setIsSavingBilling(false);
       return false;
     }
@@ -2089,8 +2101,8 @@ export function ClinicFlowApp({
     setSelectedPatientId((current) =>
       resolveSelectedPatientIdentity(current, savedPatient, paymentAliases),
     );
-    setDeleteStatus("התשלום נשמר בהצלחה");
-    setBillingSaveStatus("התשלום נשמר בהצלחה.");
+    setDeleteStatus(normalizedEntryKind === "charge" ? "החיוב נשמר בהצלחה" : "התשלום נשמר בהצלחה");
+    setBillingSaveStatus(normalizedEntryKind === "charge" ? "החיוב נשמר בהצלחה." : "התשלום נשמר בהצלחה.");
     setIsSavingBilling(false);
     void refreshPatientRecord(savedPatient.id, paymentAliases);
     return true;
@@ -2100,15 +2112,17 @@ export function ClinicFlowApp({
     paymentId,
     patientId,
     amount,
+    entryKind,
     method,
     category,
     note,
   }: UpdatePaymentInput) {
     const normalizedAmount = Number(amount);
+    const normalizedEntryKind = entryKind === "charge" ? "charge" : "payment";
     const normalizedMethod = method.trim();
     const normalizedCategory = category.trim();
 
-    if (!paymentId || !patientId || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+    if (!paymentId || !patientId || !Number.isFinite(normalizedAmount) || normalizedAmount === 0) {
       setBillingSaveStatus("צריך להזין סכום תקין לפני שמירת השינויים.");
       return false;
     }
@@ -2119,7 +2133,7 @@ export function ClinicFlowApp({
     }
 
     if (!isAllowedValue(normalizedCategory, paymentCategoryOptions)) {
-      setBillingSaveStatus("צריך לבחור סוג חיוב תקין לפני שמירת השינויים.");
+      setBillingSaveStatus("צריך לבחור קטגוריה תקינה לפני שמירת השינויים.");
       return false;
     }
 
@@ -2140,7 +2154,8 @@ export function ClinicFlowApp({
       action: "updatePayment",
       paymentId,
       patientId,
-      amount: normalizedAmount,
+      amount: Math.abs(normalizedAmount),
+      entryKind: normalizedEntryKind,
       method: normalizedMethod,
       category: normalizedCategory,
       note,
@@ -2148,8 +2163,8 @@ export function ClinicFlowApp({
     const nextPaymentEntry = mutationResult?.paymentEntry;
     const updatedPatient = mutationResult?.patient;
     if (error || !nextPaymentEntry || !updatedPatient) {
-      setDeleteStatus("לא ניתן לעדכן את התשלום כרגע. השינוי לא נשמר בשרת.");
-      setBillingSaveStatus("לא ניתן לעדכן את התשלום כרגע. נסה שוב.");
+      setDeleteStatus("לא ניתן לעדכן את התנועה הכספית כרגע. השינוי לא נשמר בשרת.");
+      setBillingSaveStatus("לא ניתן לעדכן את התנועה הכספית כרגע. נסה שוב.");
       setIsSavingBilling(false);
       return false;
     }
@@ -2170,8 +2185,8 @@ export function ClinicFlowApp({
     setSelectedPatientId((current) =>
       resolveSelectedPatientIdentity(current, updatedPatient, paymentAliases),
     );
-    setDeleteStatus("התשלום עודכן בהצלחה");
-    setBillingSaveStatus("התשלום עודכן בהצלחה.");
+    setDeleteStatus(normalizedEntryKind === "charge" ? "החיוב עודכן בהצלחה" : "התשלום עודכן בהצלחה");
+    setBillingSaveStatus(normalizedEntryKind === "charge" ? "החיוב עודכן בהצלחה." : "התשלום עודכן בהצלחה.");
     setIsSavingBilling(false);
     void refreshPatientRecord(updatedPatient.id, paymentAliases);
     return true;
@@ -2179,14 +2194,14 @@ export function ClinicFlowApp({
 
   async function handleDeletePayment({ paymentId, patientId }: DeletePaymentInput) {
     if (!paymentId || !patientId) {
-      setBillingSaveStatus("לא ניתן למחוק תשלום בלי מזהה מלא.");
+      setBillingSaveStatus("לא ניתן למחוק תנועה כספית בלי מזהה מלא.");
       return false;
     }
 
     const existingPayment = paymentEntries.find((entry) => entry.id === paymentId);
 
     if (!existingPayment) {
-      setBillingSaveStatus("לא נמצאה רשומת תשלום למחיקה.");
+      setBillingSaveStatus("לא נמצאה רשומה למחיקה.");
       return false;
     }
 
@@ -2202,8 +2217,8 @@ export function ClinicFlowApp({
     });
     const updatedPatient = mutationResult?.patient;
     if (error || !updatedPatient) {
-      setDeleteStatus("לא ניתן למחוק את התשלום כרגע. המחיקה לא נשמרה בשרת.");
-      setBillingSaveStatus("לא ניתן למחוק את התשלום כרגע. נסה שוב.");
+      setDeleteStatus("לא ניתן למחוק את התנועה הכספית כרגע. המחיקה לא נשמרה בשרת.");
+      setBillingSaveStatus("לא ניתן למחוק את התנועה הכספית כרגע. נסה שוב.");
       setIsSavingBilling(false);
       return false;
     }
@@ -2224,8 +2239,8 @@ export function ClinicFlowApp({
     setSelectedPatientId((current) =>
       resolveSelectedPatientIdentity(current, updatedPatient, paymentAliases),
     );
-    setDeleteStatus("התשלום נמחק בהצלחה");
-    setBillingSaveStatus("התשלום נמחק בהצלחה.");
+    setDeleteStatus("התנועה הכספית נמחקה בהצלחה");
+    setBillingSaveStatus("התנועה הכספית נמחקה בהצלחה.");
     setIsSavingBilling(false);
     void refreshPatientRecord(updatedPatient.id, paymentAliases);
     return true;
@@ -2657,19 +2672,20 @@ export function ClinicFlowApp({
                         }
                         handleEditPatient(selectedPatient);
                       }}
-                      onAddPayment={({ amount, method, category, note }) => {
+                      onAddPayment={({ amount, entryKind, method, category, note }) => {
                         if (!selectedPatient) {
                           return Promise.resolve(false);
                         }
                         return handleAddPayment({
                           patientId: selectedPatient.id,
                           amount,
+                          entryKind,
                           method,
                           category,
                           note,
                         });
                       }}
-                      onUpdatePayment={({ paymentId, amount, method, category, note }) => {
+                      onUpdatePayment={({ paymentId, amount, entryKind, method, category, note }) => {
                         if (!selectedPatient) {
                           return Promise.resolve(false);
                         }
@@ -2677,6 +2693,7 @@ export function ClinicFlowApp({
                           paymentId,
                           patientId: selectedPatient.id,
                           amount,
+                          entryKind,
                           method,
                           category,
                           note,
@@ -2853,19 +2870,20 @@ export function ClinicFlowApp({
                       }
                       handleEditPatient(selectedPatient);
                     }}
-                    onAddPayment={({ amount, method, category, note }) => {
+                    onAddPayment={({ amount, entryKind, method, category, note }) => {
                       if (!selectedPatient) {
                         return Promise.resolve(false);
                       }
                       return handleAddPayment({
                         patientId: selectedPatient.id,
                         amount,
+                        entryKind,
                         method,
                         category,
                         note,
                       });
                     }}
-                    onUpdatePayment={({ paymentId, amount, method, category, note }) => {
+                    onUpdatePayment={({ paymentId, amount, entryKind, method, category, note }) => {
                       if (!selectedPatient) {
                         return Promise.resolve(false);
                       }
@@ -2873,6 +2891,7 @@ export function ClinicFlowApp({
                         paymentId,
                         patientId: selectedPatient.id,
                         amount,
+                        entryKind,
                         method,
                         category,
                         note,

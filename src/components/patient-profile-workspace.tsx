@@ -51,6 +51,7 @@ type PaymentEntry = {
   created_at: string;
   payment_date: string;
   amount: number;
+  entry_kind?: "payment" | "charge";
   method: string;
   status: "completed" | "pending" | "refunded";
   category: string;
@@ -87,6 +88,7 @@ type PatientProfileWorkspaceProps = {
   onEditPatient: () => void;
   onAddPayment: (input: {
     amount: number;
+    entryKind: "payment" | "charge";
     method: string;
     category: string;
     note: string;
@@ -94,6 +96,7 @@ type PatientProfileWorkspaceProps = {
   onUpdatePayment: (input: {
     paymentId: string;
     amount: number;
+    entryKind: "payment" | "charge";
     method: string;
     category: string;
     note: string;
@@ -143,6 +146,22 @@ function formatCurrency(value?: number | null) {
   return `${value > 0 ? "+" : ""}${value} ש״ח`;
 }
 
+function formatBillingEntryAmount(value?: number | null) {
+  if (!value) {
+    return "0 ש״ח";
+  }
+
+  return `${Math.abs(value)} ש״ח`;
+}
+
+function getBillingEntryKind(entry: PaymentEntry) {
+  if (entry.entry_kind) {
+    return entry.entry_kind;
+  }
+
+  return entry.amount < 0 ? "charge" : "payment";
+}
+
 function formatPaymentDate(value: string) {
   return new Date(value).toLocaleDateString("he-IL", {
     year: "numeric",
@@ -184,6 +203,7 @@ export function PatientProfileWorkspace({
   const [isCompactLayout, setIsCompactLayout] = useState(true);
   const [editingPaymentId, setEditingPaymentId] = useState("");
   const [paymentForm, setPaymentForm] = useState({
+    entryKind: "payment" as "payment" | "charge",
     amount: "",
     method: "אשראי",
     category: "מפגש טיפול",
@@ -214,6 +234,7 @@ export function PatientProfileWorkspace({
   function resetPaymentForm() {
     setEditingPaymentId("");
     setPaymentForm({
+      entryKind: "payment",
       amount: "",
       method: "אשראי",
       category: "מפגש טיפול",
@@ -625,7 +646,7 @@ export function PatientProfileWorkspace({
               <span>תשלום אחרון</span>
               <strong>
                 {latestPayment
-                  ? `${formatCurrency(latestPayment.amount)} | ${formatPaymentDate(latestPayment.payment_date)}`
+                  ? `${getBillingEntryKind(latestPayment) === "charge" ? "חיוב" : "תשלום"} | ${formatBillingEntryAmount(latestPayment.amount)} | ${formatPaymentDate(latestPayment.payment_date)}`
                   : "עדיין אין תשלום"}
               </strong>
             </div>
@@ -634,7 +655,7 @@ export function PatientProfileWorkspace({
           <div className="workspace-billing-layout">
             <section className="workspace-billing-column">
               <div className="card-head">
-                <h4>היסטוריית תשלומים</h4>
+                <h4>היסטוריית תנועות</h4>
                 <span>{patient.insurance_provider ?? "ללא ביטוח"}</span>
               </div>
               {isCompactLayout ? (
@@ -644,6 +665,9 @@ export function PatientProfileWorkspace({
                       <div className="workspace-mobile-card-head">
                         <strong>{formatPaymentDate(payment.payment_date)}</strong>
                         <span className="chip warm">{payment.status}</span>
+                        <span className="chip chip-muted">
+                          {getBillingEntryKind(payment) === "charge" ? "חיוב" : "תשלום"}
+                        </span>
                       </div>
                       <div className="workspace-mobile-grid">
                         <div className="workspace-mobile-item">
@@ -656,7 +680,7 @@ export function PatientProfileWorkspace({
                         </div>
                         <div className="workspace-mobile-item">
                           <span>סכום</span>
-                          <strong>{formatCurrency(payment.amount)}</strong>
+                          <strong>{formatBillingEntryAmount(payment.amount)}</strong>
                         </div>
                       </div>
                       <div className="workspace-mobile-item workspace-mobile-item-full">
@@ -673,7 +697,8 @@ export function PatientProfileWorkspace({
                             onClick={() => {
                               setEditingPaymentId(payment.id);
                               setPaymentForm({
-                                amount: String(payment.amount),
+                                entryKind: getBillingEntryKind(payment),
+                                amount: String(Math.abs(payment.amount)),
                                 method: payment.method,
                                 category: payment.category,
                                 note: payment.note ?? "",
@@ -731,10 +756,13 @@ export function PatientProfileWorkspace({
                           <td>{payment.category}</td>
                           <td>{payment.method}</td>
                           <td>{payment.status}</td>
-                          <td>{formatCurrency(payment.amount)}</td>
+                          <td>{formatBillingEntryAmount(payment.amount)}</td>
                           <td>
                             <div className="workspace-payment-cell">
                               <span>{payment.note ?? "ללא הערה"}</span>
+                              <span className="item-meta">
+                                {getBillingEntryKind(payment) === "charge" ? "חיוב" : "תשלום"}
+                              </span>
                               {canManageBilling ? (
                                 <>
                                   <button
@@ -743,7 +771,8 @@ export function PatientProfileWorkspace({
                                     onClick={() => {
                                       setEditingPaymentId(payment.id);
                                       setPaymentForm({
-                                        amount: String(payment.amount),
+                                        entryKind: getBillingEntryKind(payment),
+                                        amount: String(Math.abs(payment.amount)),
                                         method: payment.method,
                                         category: payment.category,
                                         note: payment.note ?? "",
@@ -792,7 +821,7 @@ export function PatientProfileWorkspace({
 
             <section className="workspace-billing-column">
               <div className="card-head">
-                <h4>הוספת תשלום</h4>
+                <h4>הוספת תנועה כספית</h4>
                 <span>עדכון מהיר מתוך התיק</span>
               </div>
               {canManageBilling ? (
@@ -804,6 +833,7 @@ export function PatientProfileWorkspace({
                       return;
                     }
                     const payload = {
+                      entryKind: paymentForm.entryKind,
                       amount: Number(paymentForm.amount),
                       method: paymentForm.method,
                       category: paymentForm.category,
@@ -821,6 +851,21 @@ export function PatientProfileWorkspace({
                   }}
                 >
                   <label className="inline-field">
+                    <span>סוג תנועה</span>
+                    <select
+                      value={paymentForm.entryKind}
+                      onChange={(event) =>
+                        setPaymentForm((current) => ({
+                          ...current,
+                          entryKind: event.target.value === "charge" ? "charge" : "payment",
+                        }))
+                      }
+                    >
+                      <option value="payment">תשלום</option>
+                      <option value="charge">חיוב</option>
+                    </select>
+                  </label>
+                  <label className="inline-field">
                     <span>סכום</span>
                     <input
                       type="number"
@@ -837,7 +882,7 @@ export function PatientProfileWorkspace({
                     />
                   </label>
                   <label className="inline-field">
-                    <span>סוג חיוב</span>
+                    <span>קטגוריה</span>
                     <select
                       value={paymentForm.category}
                       onChange={(event) =>
@@ -882,7 +927,11 @@ export function PatientProfileWorkspace({
                           note: event.target.value,
                         }))
                       }
-                      placeholder="למשל שולם במקום עבור מפגש המשך"
+                      placeholder={
+                        paymentForm.entryKind === "charge"
+                          ? "למשל חיוב עבור אבחון ראשוני"
+                          : "למשל שולם במקום עבור מפגש המשך"
+                      }
                     />
                   </label>
                   <button className="primary-btn" type="submit" disabled={isSavingBilling}>
@@ -890,7 +939,9 @@ export function PatientProfileWorkspace({
                       ? "שומר..."
                       : editingPaymentId
                         ? "שמירת תיקון"
-                        : "הוספת תשלום"}
+                        : paymentForm.entryKind === "charge"
+                          ? "הוספת חיוב"
+                          : "הוספת תשלום"}
                   </button>
                   {editingPaymentId ? (
                     <button

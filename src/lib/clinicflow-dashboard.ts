@@ -71,6 +71,7 @@ type PaymentEntry = {
   created_at: string;
   payment_date: string;
   amount: number;
+  entry_kind?: "payment" | "charge";
   method: string;
   status: "completed" | "pending" | "refunded";
   category: string;

@@ -40,6 +40,7 @@ type MutationRequest =
       action: "savePayment";
       patientId: string;
       amount: number;
+      entryKind?: "payment" | "charge";
       method: string;
       category: string;
       note?: string;
@@ -49,6 +50,7 @@ type MutationRequest =
       paymentId: string;
       patientId: string;
       amount: number;
+      entryKind?: "payment" | "charge";
       method: string;
       category: string;
       note?: string;
@@ -672,13 +674,14 @@ export async function POST(request: Request) {
       case "savePayment": {
         const resolvedPatientId = await resolveStoredPatientId(body.patientId);
         const normalizedAmount = Number(body.amount);
+        const normalizedEntryKind = body.entryKind === "charge" ? "charge" : "payment";
         const normalizedMethod = normalizeRequiredText(body.method);
         const normalizedCategory = normalizeRequiredText(body.category);
 
         if (!resolvedPatientId || !isUuid(resolvedPatientId)) {
           return buildInvalidLookupResponse("Patient");
         }
-        if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+        if (!Number.isFinite(normalizedAmount) || normalizedAmount === 0) {
           return NextResponse.json(
             { ok: false, error: "Payment amount is invalid" },
             { status: 400 },
@@ -722,19 +725,24 @@ export async function POST(request: Request) {
           },
         );
         const currentBalance = parsePatientNotes(patientResult.data.notes).paymentBalance ?? 0;
+        const storedAmount =
+          normalizedEntryKind === "charge"
+            ? -Math.abs(normalizedAmount)
+            : Math.abs(normalizedAmount);
         const nextPaymentEntry: StoredPaymentEntry = {
           id: crypto.randomUUID(),
           patient_id: resolvedPatientId,
           created_at: new Date().toISOString(),
           payment_date: new Date().toISOString(),
-          amount: normalizedAmount,
+          amount: storedAmount,
+          entry_kind: normalizedEntryKind,
           method: normalizedMethod,
           status: "completed",
           category: normalizedCategory,
           note: body.note?.trim() || null,
         };
         const nextBalance =
-          Number(currentBalance) - normalizedAmount;
+          Number(currentBalance) - storedAmount;
         const nextNotes = buildPatientNotesValue(patientResult.data.notes, {
           paymentBalance: nextBalance,
           paymentEntries: [nextPaymentEntry, ...currentBilling.entries],
@@ -785,13 +793,14 @@ export async function POST(request: Request) {
 
         const resolvedPatientId = await resolveStoredPatientId(body.patientId);
         const normalizedAmount = Number(body.amount);
+        const normalizedEntryKind = body.entryKind === "charge" ? "charge" : "payment";
         const normalizedMethod = normalizeRequiredText(body.method);
         const normalizedCategory = normalizeRequiredText(body.category);
 
         if (!resolvedPatientId || !isUuid(resolvedPatientId)) {
           return buildInvalidLookupResponse("Patient");
         }
-        if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+        if (!Number.isFinite(normalizedAmount) || normalizedAmount === 0) {
           return NextResponse.json(
             { ok: false, error: "Payment amount is invalid" },
             { status: 400 },
@@ -848,16 +857,21 @@ export async function POST(request: Request) {
           );
         }
 
+        const storedAmount =
+          normalizedEntryKind === "charge"
+            ? -Math.abs(normalizedAmount)
+            : Math.abs(normalizedAmount);
         const nextPaymentEntry: StoredPaymentEntry = {
           ...existingPayment,
-          amount: normalizedAmount,
+          amount: storedAmount,
+          entry_kind: normalizedEntryKind,
           method: normalizedMethod,
           category: normalizedCategory,
           note: body.note?.trim() || null,
         };
 
         const previousAmount = Number(existingPayment.amount ?? 0);
-        const nextAmount = normalizedAmount;
+        const nextAmount = storedAmount;
         const nextBalance =
           Number(parsePatientNotes(patientResult.data.notes).paymentBalance ?? 0)
           - (nextAmount - previousAmount);
@@ -889,7 +903,7 @@ export async function POST(request: Request) {
         const mirrorUpdateResult = await supabase
           .from("payment_entries")
           .update({
-            amount: normalizedAmount,
+            amount: storedAmount,
             method: normalizedMethod,
             category: normalizedCategory,
             note: body.note?.trim() || null,
