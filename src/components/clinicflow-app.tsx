@@ -1453,6 +1453,7 @@ export function ClinicFlowApp({
   }
 
   function handleEditTherapist(therapist: Therapist) {
+    setDeleteStatus("");
     setEditingTherapistId(therapist.id);
     setAddTherapistForm({
       full_name: therapist.full_name,
@@ -1496,6 +1497,7 @@ export function ClinicFlowApp({
   }
 
   function openAddPatientDialog() {
+    setDeleteStatus("");
     setEditingPatientId("");
     setAddPatientForm(defaultAddPatientForm);
     setPatientSaveStatus("");
@@ -1503,6 +1505,7 @@ export function ClinicFlowApp({
   }
 
   function handleEditPatient(patient: Patient) {
+    setDeleteStatus("");
     setEditingPatientId(patient.id);
     setAddPatientForm(buildPatientForm(patient));
     setPatientSaveStatus("");
@@ -3117,6 +3120,7 @@ export function ClinicFlowApp({
                 className="primary-btn"
                 type="button"
                 onClick={() => {
+                  setDeleteStatus("");
                   setEditingTherapistId("");
                   setAddTherapistForm(defaultAddTherapistForm);
                   setTherapistSaveStatus("");
