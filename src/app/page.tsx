@@ -5,7 +5,22 @@ import { getClinicDashboardData } from "@/lib/clinicflow-dashboard";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function Home() {
+type HomePageProps = {
+  searchParams?: Promise<{
+    section?: string;
+  }>;
+};
+
+export default async function Home({ searchParams }: HomePageProps) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const initialSection =
+    resolvedSearchParams.section === "patients"
+    || resolvedSearchParams.section === "appointments"
+    || resolvedSearchParams.section === "team"
+    || resolvedSearchParams.section === "reports"
+    || resolvedSearchParams.section === "dashboard"
+      ? resolvedSearchParams.section
+      : undefined;
   const { therapists, patients, appointments, paymentEntries } =
     await getClinicDashboardData();
 
@@ -16,6 +31,7 @@ export default async function Home() {
       appointments={appointments}
       initialPaymentEntries={paymentEntries}
       accessContext={defaultAccessContext}
+      initialSection={initialSection}
     />
   );
 }

@@ -780,16 +780,8 @@ export function ClinicFlowApp({
     [currentRole],
   );
   const navigationSections = useMemo(
-    () =>
-      displayMode === "full"
-        ? visibleSections
-        : [
-            {
-              key: "patients" as AppSection,
-              label: displayMode === "patient-record" ? "תיק מטופל" : "מטופלים",
-            },
-          ],
-    [displayMode, visibleSections],
+    () => visibleSections,
+    [visibleSections],
   );
   const defaultSection = useMemo<AppSection>(
     () =>
@@ -1941,6 +1933,16 @@ export function ClinicFlowApp({
     return `/patients/${encodeURIComponent(patientId)}`;
   }
 
+  function getSectionHref(section: AppSection) {
+    if (section === "patients") {
+      return isPatientRecordMode && selectedPatient
+        ? getPatientRecordHref(selectedPatient.id)
+        : "/patients";
+    }
+
+    return `/?section=${encodeURIComponent(section)}`;
+  }
+
   function getNoticePhone(notice: ReminderNotice) {
     if (notice.phone) {
       return notice.phone;
@@ -2276,15 +2278,26 @@ export function ClinicFlowApp({
             {navigationSections.length > 0 ? (
               <nav className="top-nav">
                 {navigationSections.map(({ key, label }) => (
-                  <button
-                    key={key}
-                    className={`nav-link ${resolvedActiveSection === key ? "active" : ""}`}
-                    data-section={key}
-                    onClick={() => navigateToSection(key)}
-                    type="button"
-                  >
-                    {label}
-                  </button>
+                  displayMode === "full" ? (
+                    <button
+                      key={key}
+                      className={`nav-link ${resolvedActiveSection === key ? "active" : ""}`}
+                      data-section={key}
+                      onClick={() => navigateToSection(key)}
+                      type="button"
+                    >
+                      {label}
+                    </button>
+                  ) : (
+                    <Link
+                      key={key}
+                      className={`nav-link ${resolvedActiveSection === key ? "active" : ""}`}
+                      data-section={key}
+                      href={getSectionHref(key)}
+                    >
+                      {label}
+                    </Link>
+                  )
                 ))}
               </nav>
             ) : null}
