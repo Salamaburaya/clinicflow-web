@@ -12,6 +12,7 @@ import {
   getSeedPaymentEntriesForPatients,
   resolvePatientIdFromKnownData,
 } from "@/lib/clinicflow-dashboard";
+import { requestHasClinicAccess } from "@/lib/clinicflow-access-gate";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getServerSupabaseClient } from "@/lib/supabase-server";
 
@@ -24,6 +25,10 @@ function isUuid(value: string) {
 }
 
 export async function GET(request: Request) {
+  if (!requestHasClinicAccess(request)) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const patientId = searchParams.get("patientId");
 

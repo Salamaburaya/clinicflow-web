@@ -16,6 +16,7 @@ import {
   getSeedPaymentEntriesForPatients,
   getSeedTherapistFullNameById,
 } from "@/lib/clinicflow-dashboard";
+import { requestHasClinicAccess } from "@/lib/clinicflow-access-gate";
 import { getServerSupabaseClient } from "@/lib/supabase-server";
 
 export const runtime = "nodejs";
@@ -107,6 +108,10 @@ function buildTherapistServerPayload(payload: Record<string, unknown>) {
 
 export async function POST(request: Request) {
   try {
+    if (!requestHasClinicAccess(request)) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = (await request.json()) as MutationRequest;
     const supabase = getServerSupabaseClient();
 

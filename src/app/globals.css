@@ -1236,7 +1236,36 @@ button, input, select, textarea { font: inherit; }
   .workspace-mobile-grid {
     grid-template-columns: 1fr;
   }
-  .workspace-mobile-card-head .chip {
-    justify-self: start;
-  }
+.workspace-mobile-card-head .chip {
+  justify-self: start;
+}
+}
+
+.clinicflow-unlock-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1rem;
+}
+
+.clinicflow-unlock-shell {
+  width: min(100%, 30rem);
+  background: rgba(255, 252, 247, 0.94);
+  border: 1px solid rgba(20, 108, 99, 0.12);
+  border-radius: 1.75rem;
+  box-shadow: 0 24px 70px rgba(20, 108, 99, 0.14);
+  padding: 1.5rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.clinicflow-unlock-shell h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  color: #143b3d;
+}
+
+.clinicflow-unlock-form {
+  display: grid;
+  gap: 1rem;
 }
