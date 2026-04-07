@@ -241,6 +241,44 @@ const defaultAddPatientForm: AddPatientForm = {
   functional_status: "",
 };
 
+const patientDisciplineOptions = ["פיזיותרפיה", "ריפוי בעיסוק"] as const;
+const patientStatusOptions = ["חדש", "בטיפול", "מעקב"] as const;
+const therapistProfessionOptions = ["פיזיותרפיה", "ריפוי בעיסוק"] as const;
+const paymentCategoryOptions = [
+  "מפגש טיפול",
+  "אבחון ראשוני",
+  "חבילת טיפולים",
+  "מקדמה",
+] as const;
+const paymentMethodOptions = [
+  "אשראי",
+  "ביט",
+  "מזומן",
+  "העברה",
+  "התחייבות קופה",
+] as const;
+
+function isAllowedValue(value: string, options: readonly string[]) {
+  return options.includes(value);
+}
+
+function hasPatientRecordChanges(
+  patient: Patient,
+  payload: {
+    status: string;
+    diagnosis: string | null;
+    treatment_goal: string | null;
+    phone: string | null;
+  },
+) {
+  return (
+    patient.status !== payload.status ||
+    (patient.diagnosis ?? null) !== payload.diagnosis ||
+    (patient.treatment_goal ?? null) !== payload.treatment_goal ||
+    (patient.phone ?? null) !== payload.phone
+  );
+}
+
 function buildPatientForm(patient?: Patient | null): AddPatientForm {
   if (!patient) {
     return defaultAddPatientForm;
@@ -1234,14 +1272,31 @@ export function ClinicFlowApp({
 
   async function handleAddPatientSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setIsAddingPatient(true);
     setPatientSaveStatus("");
+
+    const normalizedFullName = addPatientForm.full_name.trim();
+    if (!normalizedFullName) {
+      setPatientSaveStatus("צריך להזין שם מלא לפני שמירת מטופל.");
+      return;
+    }
+
+    if (!isAllowedValue(addPatientForm.discipline, patientDisciplineOptions)) {
+      setPatientSaveStatus("צריך לבחור תחום טיפולי תקין.");
+      return;
+    }
+
+    if (!isAllowedValue(addPatientForm.status, patientStatusOptions)) {
+      setPatientSaveStatus("צריך לבחור סטטוס מטופל תקין.");
+      return;
+    }
+
+    setIsAddingPatient(true);
 
     const therapistId =
       defaultTherapistByDiscipline.get(addPatientForm.discipline) ?? null;
 
     const patientPayload = {
-      full_name: addPatientForm.full_name.trim(),
+      full_name: normalizedFullName,
       discipline: addPatientForm.discipline,
       status: addPatientForm.status,
       diagnosis: addPatientForm.diagnosis.trim() || null,
@@ -1316,11 +1371,23 @@ export function ClinicFlowApp({
 
   async function handleAddTherapistSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setIsAddingTherapist(true);
     setTherapistSaveStatus("");
 
+    const normalizedFullName = addTherapistForm.full_name.trim();
+    if (!normalizedFullName) {
+      setTherapistSaveStatus("צריך להזין שם מלא לפני שמירת מטפל.");
+      return;
+    }
+
+    if (!isAllowedValue(addTherapistForm.profession, therapistProfessionOptions)) {
+      setTherapistSaveStatus("צריך לבחור מקצוע מטפל תקין.");
+      return;
+    }
+
+    setIsAddingTherapist(true);
+
     const payload = {
-      full_name: addTherapistForm.full_name.trim(),
+      full_name: normalizedFullName,
       profession: addTherapistForm.profession,
       specialty: addTherapistForm.specialty.trim() || null,
       phone: addTherapistForm.phone.trim() || null,
@@ -1424,8 +1491,12 @@ export function ClinicFlowApp({
       return;
     }
 
-    setIsSavingJournal(true);
     setJournalSaveStatus("");
+
+    if (!isAllowedValue(journalForm.status, patientStatusOptions)) {
+      setJournalSaveStatus("צריך לבחור סטטוס מטופל תקין לפני שמירת יומן.");
+      return;
+    }
 
     const patientPayload = {
       status: journalForm.status,
@@ -1446,6 +1517,14 @@ export function ClinicFlowApp({
           home_program: journalForm.homeProgram.trim() || null,
         }
       : null;
+
+    const hasRecordChanges = hasPatientRecordChanges(selectedPatient, patientPayload);
+    if (!journalPayload && !hasRecordChanges) {
+      setJournalSaveStatus("לא זוהה שינוי לשמירה ביומן או בפרטי המטופל.");
+      return;
+    }
+
+    setIsSavingJournal(true);
 
     const { data: mutationResult, error: mutationError } = await runClinicMutation<{
       patient: Patient;
@@ -1502,21 +1581,36 @@ export function ClinicFlowApp({
       return;
     }
 
-    setIsSavingAppointment(true);
     setAppointmentSaveStatus("");
+
+    const selectedAppointmentPatient = patients.find(
+      (patient) => patient.id === appointmentForm.patient_id,
+    );
+    if (!selectedAppointmentPatient) {
+      setAppointmentSaveStatus("המטופל שנבחר לא זמין כרגע. רענן את הרשימה ונסה שוב.");
+      return;
+    }
 
     const therapistId =
       appointmentForm.therapist_id ||
-      patients.find((patient) => patient.id === appointmentForm.patient_id)?.therapist_id ||
+      selectedAppointmentPatient.therapist_id ||
       null;
 
-    const appointmentAt = new Date(
+    const appointmentDate = new Date(
       Number(appointmentForm.appointment_year),
       Number(appointmentForm.appointment_month) - 1,
       Number(appointmentForm.appointment_day),
       Number(appointmentForm.appointment_hour),
       Number(appointmentForm.appointment_minute),
-    ).toISOString();
+    );
+
+    if (Number.isNaN(appointmentDate.getTime())) {
+      setAppointmentSaveStatus("התאריך או השעה שנבחרו אינם תקינים.");
+      return;
+    }
+
+    const appointmentAt = appointmentDate.toISOString();
+    setIsSavingAppointment(true);
 
     const payload = {
       patient_id: appointmentForm.patient_id,
@@ -1863,9 +1957,21 @@ export function ClinicFlowApp({
 
   async function handleAddPayment({ patientId, amount, method, category, note }: AddPaymentInput) {
     const normalizedAmount = Number(amount);
+    const normalizedMethod = method.trim();
+    const normalizedCategory = category.trim();
 
     if (!patientId || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
       setBillingSaveStatus("צריך להזין סכום תקין לפני שמירת תשלום.");
+      return false;
+    }
+
+    if (!isAllowedValue(normalizedMethod, paymentMethodOptions)) {
+      setBillingSaveStatus("צריך לבחור אמצעי תשלום תקין לפני שמירת תשלום.");
+      return false;
+    }
+
+    if (!isAllowedValue(normalizedCategory, paymentCategoryOptions)) {
+      setBillingSaveStatus("צריך לבחור סוג חיוב תקין לפני שמירת תשלום.");
       return false;
     }
 
@@ -1879,8 +1985,8 @@ export function ClinicFlowApp({
       action: "savePayment",
       patientId,
       amount: normalizedAmount,
-      method,
-      category,
+      method: normalizedMethod,
+      category: normalizedCategory,
       note,
     });
     const savedPaymentEntry = mutationResult?.paymentEntry;
@@ -1923,9 +2029,21 @@ export function ClinicFlowApp({
     note,
   }: UpdatePaymentInput) {
     const normalizedAmount = Number(amount);
+    const normalizedMethod = method.trim();
+    const normalizedCategory = category.trim();
 
     if (!paymentId || !patientId || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
       setBillingSaveStatus("צריך להזין סכום תקין לפני שמירת השינויים.");
+      return false;
+    }
+
+    if (!isAllowedValue(normalizedMethod, paymentMethodOptions)) {
+      setBillingSaveStatus("צריך לבחור אמצעי תשלום תקין לפני שמירת השינויים.");
+      return false;
+    }
+
+    if (!isAllowedValue(normalizedCategory, paymentCategoryOptions)) {
+      setBillingSaveStatus("צריך לבחור סוג חיוב תקין לפני שמירת השינויים.");
       return false;
     }
 
@@ -1947,8 +2065,8 @@ export function ClinicFlowApp({
       paymentId,
       patientId,
       amount: normalizedAmount,
-      method,
-      category,
+      method: normalizedMethod,
+      category: normalizedCategory,
       note,
     });
     const nextPaymentEntry = mutationResult?.paymentEntry;
