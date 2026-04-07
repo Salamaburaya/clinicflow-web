@@ -211,6 +211,41 @@ function buildAppointmentServerPayload(payload: Record<string, unknown>) {
   };
 }
 
+function buildJournalServerPayload(
+  payload: Record<string, unknown>,
+  patientId: string,
+  therapistId: string | null,
+) {
+  const contentCandidates = [
+    typeof payload.content === "string" ? payload.content.trim() : "",
+    [
+      typeof payload.title === "string" && payload.title.trim()
+        ? `כותרת: ${payload.title.trim()}`
+        : "",
+      typeof payload.summary === "string" && payload.summary.trim()
+        ? `סיכום: ${payload.summary.trim()}`
+        : "",
+      typeof payload.type === "string" && payload.type.trim()
+        ? `סוג: ${payload.type.trim()}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  ].filter(Boolean);
+
+  return {
+    patient_id: patientId,
+    therapist_id: therapistId,
+    entry_date:
+      normalizeAppointmentDate(payload.entry_date ?? payload.created_at) ?? new Date().toISOString(),
+    content: contentCandidates[0] || "",
+    home_program:
+      typeof payload.home_program === "string" && payload.home_program.trim().length > 0
+        ? payload.home_program.trim()
+        : null,
+  };
+}
+
 function buildTherapistServerPayload(payload: Record<string, unknown>) {
   return {
     full_name:
@@ -592,11 +627,17 @@ export async function POST(request: Request) {
           if (resolvedEntryTherapistId && !isUuid(resolvedEntryTherapistId)) {
             return buildInvalidLookupResponse("Therapist");
           }
-          const normalizedJournalPayload = {
-            ...body.journalPayload,
-            patient_id: resolvedPatientId,
-            therapist_id: resolvedEntryTherapistId,
-          };
+          const normalizedJournalPayload = buildJournalServerPayload(
+            body.journalPayload,
+            resolvedPatientId,
+            resolvedEntryTherapistId,
+          );
+          if (!normalizedJournalPayload.content) {
+            return NextResponse.json(
+              { ok: false, error: "Journal content is required" },
+              { status: 400 },
+            );
+          }
           const journalResult = await supabase
             .from("journal_entries")
             .insert(normalizedJournalPayload)
