@@ -818,6 +818,12 @@ export function ClinicFlowApp({
     initialSelectedPatientId,
   );
   const effectiveSelectedPatientId = selectedPatientId || focusedPatientId || "";
+  const [isLoadingFocusedPatientRecord, setIsLoadingFocusedPatientRecord] = useState(
+    () =>
+      displayMode === "patient-record"
+      && Boolean(focusedPatientId)
+      && !initialPatients.some((patient) => patient.id === focusedPatientId),
+  );
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [showPatientDialog, setShowPatientDialog] = useState(false);
   const [showJournalDialog, setShowJournalDialog] = useState(false);
@@ -905,10 +911,12 @@ export function ClinicFlowApp({
   const selectedPatient = isPatientRecordMode
     ? patients.find((patient) => patient.id === effectiveSelectedPatientId)
     : patients.find((patient) => patient.id === effectiveSelectedPatientId) ?? patients[0];
-  const isWaitingForFocusedPatient = false;
+  const isWaitingForFocusedPatient =
+    isPatientRecordMode && Boolean(focusedPatientId) && isLoadingFocusedPatientRecord;
   const isMissingFocusedPatient =
     isPatientRecordMode
     && Boolean(focusedPatientId)
+    && !isWaitingForFocusedPatient
     && !selectedPatient;
   const selectedPatientIndex = selectedPatient
     ? patients.findIndex((patient) => patient.id === selectedPatient.id)
@@ -1191,20 +1199,32 @@ export function ClinicFlowApp({
   }, []);
 
   useEffect(() => {
-    const patientId = selectedPatient?.id;
+    const patientId = isPatientRecordMode
+      ? focusedPatientId || selectedPatient?.id
+      : selectedPatient?.id;
 
     if (!patientId) {
       return;
     }
 
+    let isActive = true;
     const timeoutId = window.setTimeout(() => {
-      void refreshPatientRecord(patientId);
+      if (isActive && isPatientRecordMode && focusedPatientId) {
+        setIsLoadingFocusedPatientRecord(true);
+      }
+
+      void refreshPatientRecord(patientId).finally(() => {
+        if (isActive && isPatientRecordMode && focusedPatientId) {
+          setIsLoadingFocusedPatientRecord(false);
+        }
+      });
     }, 0);
 
     return () => {
+      isActive = false;
       window.clearTimeout(timeoutId);
     };
-  }, [refreshPatientRecord, selectedPatient?.id]);
+  }, [refreshPatientRecord, selectedPatient?.id, focusedPatientId, isPatientRecordMode]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
