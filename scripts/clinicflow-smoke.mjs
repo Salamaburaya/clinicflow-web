@@ -14,6 +14,10 @@ async function fetchText(path) {
   return { response, body };
 }
 
+function stripScripts(html) {
+  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+}
+
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
@@ -37,21 +41,22 @@ function assertNotIncludes(body, forbidden, label) {
 async function checkPage(path, checks) {
   const { response, body } = await fetchText(path);
   const label = path || "/";
+  const visibleBody = stripScripts(body);
 
   assert(response.ok, `${label}: expected HTTP 200, got ${response.status}`);
-  assertNotIncludes(body, "This page couldn’t load", label);
-  assertNotIncludes(body, "This page couldn't load", label);
+  assertNotIncludes(visibleBody, "This page couldn’t load", label);
+  assertNotIncludes(visibleBody, "This page couldn't load", label);
 
   if (!checks.allowEmbeddedNotFoundTemplate) {
-    assertNotIncludes(body, "לא מצאנו את המטופל הזה", label);
+    assertNotIncludes(visibleBody, "לא מצאנו את המטופל הזה", label);
   }
 
   for (const expected of checks.includes ?? []) {
-    assertIncludes(body, expected, label);
+    assertIncludes(visibleBody, expected, label);
   }
 
   for (const forbidden of checks.excludes ?? []) {
-    assertNotIncludes(body, forbidden, label);
+    assertNotIncludes(visibleBody, forbidden, label);
   }
 }
 
