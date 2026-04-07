@@ -819,10 +819,7 @@ export function ClinicFlowApp({
   );
   const effectiveSelectedPatientId = selectedPatientId || focusedPatientId || "";
   const [isLoadingFocusedPatientRecord, setIsLoadingFocusedPatientRecord] = useState(
-    () =>
-      displayMode === "patient-record"
-      && Boolean(focusedPatientId)
-      && !initialPatients.some((patient) => patient.id === focusedPatientId),
+    () => displayMode === "patient-record" && Boolean(focusedPatientId),
   );
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [showPatientDialog, setShowPatientDialog] = useState(false);
