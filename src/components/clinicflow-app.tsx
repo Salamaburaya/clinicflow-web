@@ -659,6 +659,19 @@ function buildWhatsAppUrl(phone?: string | null, message?: string) {
   return `https://api.whatsapp.com/send?phone=${normalizedPhone}${text ? `&text=${text}` : ""}`;
 }
 
+function getActionStatusTone(message: string) {
+  if (
+    message.includes("לא ניתן") ||
+    message.includes("צריך") ||
+    message.includes("לא נמצאה") ||
+    message.includes("לא זוהה")
+  ) {
+    return "pending";
+  }
+
+  return "sent";
+}
+
 function mergePatientIntoCollection(
   currentPatients: Patient[],
   nextPatient: Patient,
@@ -2243,6 +2256,12 @@ export function ClinicFlowApp({
             </section>
           </header>
 
+          {deleteStatus ? (
+            <div className={`notice-status ${getActionStatusTone(deleteStatus)}`}>
+              {deleteStatus}
+            </div>
+          ) : null}
+
           {!isPatientRecordMode ? (
             <section className="hero">
               <div>
@@ -2801,7 +2820,6 @@ export function ClinicFlowApp({
                 ) : null}
               </>
             )}
-            {deleteStatus ? <div className="item-meta">{deleteStatus}</div> : null}
           </section>
 
           <section className={`panel ${resolvedActiveSection === "appointments" ? "active" : ""}`}>
