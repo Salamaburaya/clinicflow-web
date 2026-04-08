@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { getPatientOperationalFlags } from "@/lib/clinicflow-patient-insights";
+import {
+  getAppointmentStatusLabel,
+  getAppointmentStatusTone,
+} from "@/lib/clinicflow-status-labels";
 
 type Patient = {
   id: string;
@@ -560,7 +564,9 @@ export function PatientProfileWorkspace({
                       {formatAppointmentDate(appointment.appointment_at)}{" "}
                       {formatAppointmentTime(appointment.appointment_at)}
                     </strong>
-                    <span className="chip warm">{appointment.status}</span>
+                    <span className={`chip ${getAppointmentStatusTone(appointment.status)}`}>
+                      {getAppointmentStatusLabel(appointment.status)}
+                    </span>
                   </div>
                   <div className="workspace-mobile-grid">
                     <div className="workspace-mobile-item">
@@ -611,7 +617,11 @@ export function PatientProfileWorkspace({
                       <td>{getAppointmentKind(appointment.summary)}</td>
                       <td>{therapistName}</td>
                       <td>{appointment.room ?? "לא הוגדר"}</td>
-                      <td>{appointment.status}</td>
+                      <td>
+                        <span className={`chip ${getAppointmentStatusTone(appointment.status)}`}>
+                          {getAppointmentStatusLabel(appointment.status)}
+                        </span>
+                      </td>
                       <td>{appointment.summary ?? "ללא סיכום"}</td>
                     </tr>
                   ))}
