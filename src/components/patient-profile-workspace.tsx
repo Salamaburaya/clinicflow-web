@@ -640,7 +640,7 @@ export function PatientProfileWorkspace({
             </div>
             <div className="workspace-overview-item tone-warn">
               <span>פעולה הבאה</span>
-              <strong>{patient.insurance_provider ? "בדיקת זכאות והמשך חיוב" : "הוספת תנועה כספית"}</strong>
+              <strong>{patient.insurance_provider ? "בדיקת זכאות והמשך חיוב" : "הוספת תשלום או חיוב"}</strong>
             </div>
             <div className="workspace-overview-item tone-good">
               <span>תשלום אחרון</span>
