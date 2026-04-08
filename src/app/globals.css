@@ -668,6 +668,10 @@ button, input, select, textarea { font: inherit; }
   transition: transform 0.2s ease, background 0.2s ease;
 }
 
+.journal-patient-item > div:first-child {
+  min-width: 0;
+}
+
 .journal-patient-item:hover {
   transform: translateY(-1px);
   background: rgba(216, 239, 229, 0.28);
@@ -1332,6 +1336,27 @@ button, input, select, textarea { font: inherit; }
   .workspace-mobile-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+  .journal-patient-item {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: right;
+  }
+  .patient-option-chips,
+  .patient-option-actions,
+  .patient-meta-line {
+    width: 100%;
+  }
+  .patient-option-chips,
+  .patient-option-actions {
+    justify-content: flex-start;
+  }
+  .patient-meta-line {
+    gap: 6px;
+  }
+  .patient-meta-line span,
+  .chip {
+    max-width: 100%;
   }
   .patient-route-toolbar,
   .patient-route-state-card,
