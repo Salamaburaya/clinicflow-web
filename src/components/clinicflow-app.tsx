@@ -2726,8 +2726,9 @@ export function ClinicFlowApp({
                     >
                       <div>
                         <strong>{patient.full_name}</strong>
-                        <div className="item-meta">
-                          {patient.discipline} | {therapistNameById.get(patient.therapist_id ?? "") ?? "ללא מטפל"}
+                        <div className="patient-meta-line">
+                          <span>{patient.discipline}</span>
+                          <span>{therapistNameById.get(patient.therapist_id ?? "") ?? "ללא מטפל"}</span>
                         </div>
                       </div>
                       <div className="chips patient-option-chips">
