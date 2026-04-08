@@ -864,6 +864,7 @@ export function ClinicFlowApp({
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
   const [isSavingBilling, setIsSavingBilling] = useState(false);
   const [editingAppointmentId, setEditingAppointmentId] = useState("");
+  const [selectedTherapistFilterIds, setSelectedTherapistFilterIds] = useState<string[]>([]);
   const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>(
     Object.fromEntries(
       initialPatients.map((patient) => [patient.id, patient.status]),
@@ -920,11 +921,16 @@ export function ClinicFlowApp({
     ? patients[selectedPatientIndex + 1]
     : undefined;
 
-  const filteredPatients = patients.filter((patient) =>
-    [patient.full_name, patient.discipline, patient.status]
+  const filteredPatients = patients.filter((patient) => {
+    const matchesSearch = [patient.full_name, patient.discipline, patient.status]
       .join(" ")
-      .includes(search.trim()),
-  );
+      .includes(search.trim());
+    const matchesTherapistFilter =
+      selectedTherapistFilterIds.length === 0
+      || selectedTherapistFilterIds.includes(patient.therapist_id ?? "");
+
+    return matchesSearch && matchesTherapistFilter;
+  });
   const appointmentPatientById = useMemo(
     () => new Map(patients.map((patient) => [patient.id, patient])),
     [patients],
@@ -1056,6 +1062,18 @@ export function ClinicFlowApp({
   const appointmentManagementEnabled = canManageAppointments(currentRole);
   const clinicalNotesEnabled = canEditClinicalNotes(currentRole);
   const billingManagementEnabled = canManageBilling(currentRole);
+
+  const toggleTherapistFilter = useCallback((therapistId: string) => {
+    setSelectedTherapistFilterIds((current) =>
+      current.includes(therapistId)
+        ? current.filter((id) => id !== therapistId)
+        : [...current, therapistId],
+    );
+  }, []);
+
+  const clearTherapistFilters = useCallback(() => {
+    setSelectedTherapistFilterIds([]);
+  }, []);
 
   function prependReminderNotices(nextNotices: ReminderNotice[]) {
     setReminderNotices((current) => {
@@ -2533,6 +2551,33 @@ export function ClinicFlowApp({
                 </div>
               )}
             </div>
+
+            {!isPatientRecordMode ? (
+              <div className="therapist-filter-strip">
+                <span className="therapist-filter-label">סינון לפי מטפל</span>
+                <div className="therapist-filter-actions">
+                  {therapists.map((therapist) => (
+                    <button
+                      key={therapist.id}
+                      type="button"
+                      className={`therapist-filter-chip ${selectedTherapistFilterIds.includes(therapist.id) ? "active" : ""}`}
+                      onClick={() => toggleTherapistFilter(therapist.id)}
+                    >
+                      {therapist.full_name}
+                    </button>
+                  ))}
+                  {selectedTherapistFilterIds.length > 0 ? (
+                    <button
+                      type="button"
+                      className="ghost-btn therapist-filter-reset"
+                      onClick={clearTherapistFilters}
+                    >
+                      ניקוי סינון
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
 
             {!isPatientRecordMode ? (
               <div className="card patient-directory-callout">

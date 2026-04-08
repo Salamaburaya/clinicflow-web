@@ -310,6 +310,54 @@ button, input, select, textarea { font: inherit; }
   white-space: nowrap;
 }
 
+.therapist-filter-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.therapist-filter-label {
+  color: var(--muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.therapist-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.therapist-filter-chip {
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(22, 50, 58, 0.08);
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--muted);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.therapist-filter-chip.active,
+.therapist-filter-chip:hover {
+  background: linear-gradient(180deg, rgba(15, 118, 110, 0.96), rgba(11, 93, 88, 0.96));
+  color: #f7fffd;
+  box-shadow: 0 10px 20px rgba(15, 118, 110, 0.18);
+  transform: translateY(-1px);
+}
+
+.therapist-filter-reset {
+  white-space: nowrap;
+}
+
 .primary-btn, .secondary-btn, .icon-btn, .ghost-btn {
   padding: 13px 18px;
   font-weight: 700;
@@ -1321,6 +1369,16 @@ button, input, select, textarea { font: inherit; }
   .hero-actions { width: 100%; }
   .hero-actions button, .hero-actions a, .section-head input, .section-head select, .section-tools { width: 100%; }
   .section-summary { white-space: normal; }
+  .therapist-filter-strip {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .therapist-filter-label {
+    white-space: normal;
+  }
+  .therapist-filter-actions {
+    justify-content: flex-start;
+  }
   .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .select-row { grid-template-columns: 1fr; }
   .card-head {
