@@ -12,6 +12,10 @@ import {
   getRoleLabel,
   getVisibleSections,
 } from "@/lib/clinicflow-access";
+import {
+  getOperationalQueues,
+  getPatientOperationalFlags,
+} from "@/lib/clinicflow-patient-insights";
 import { normalizeWhatsAppPhone } from "@/lib/phone";
 import { PatientProfileWorkspace } from "@/components/patient-profile-workspace";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -865,6 +869,7 @@ export function ClinicFlowApp({
   const [isSavingBilling, setIsSavingBilling] = useState(false);
   const [editingAppointmentId, setEditingAppointmentId] = useState("");
   const [selectedTherapistFilterIds, setSelectedTherapistFilterIds] = useState<string[]>([]);
+  const [patientSortMode, setPatientSortMode] = useState<"attention" | "name" | "upcoming" | "balance">("attention");
   const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>(
     Object.fromEntries(
       initialPatients.map((patient) => [patient.id, patient.status]),
@@ -921,19 +926,27 @@ export function ClinicFlowApp({
     ? patients[selectedPatientIndex + 1]
     : undefined;
 
-  const filteredPatients = patients.filter((patient) => {
-    const matchesSearch = [patient.full_name, patient.discipline, patient.status]
-      .join(" ")
-      .includes(search.trim());
-    const matchesTherapistFilter =
-      selectedTherapistFilterIds.length === 0
-      || selectedTherapistFilterIds.includes(patient.therapist_id ?? "");
-
-    return matchesSearch && matchesTherapistFilter;
-  });
   const appointmentPatientById = useMemo(
     () => new Map(patients.map((patient) => [patient.id, patient])),
     [patients],
+  );
+  const patientFlagsById = useMemo(
+    () =>
+      new Map(
+        patients.map((patient) => [
+          patient.id,
+          getPatientOperationalFlags(
+            patient,
+            appointments.filter((appointment) => appointment.patient_id === patient.id),
+            journalEntries.filter((entry) => entry.patient_id === patient.id),
+          ),
+        ]),
+      ),
+    [patients, appointments, journalEntries],
+  );
+  const operationalQueues = useMemo(
+    () => getOperationalQueues(patients, appointments, journalEntries),
+    [patients, appointments, journalEntries],
   );
   const nextAppointmentByPatientId = useMemo(() => {
     const map = new Map<string, Appointment>();
@@ -944,6 +957,66 @@ export function ClinicFlowApp({
     });
     return map;
   }, [appointments]);
+  const filteredPatients = useMemo(() => {
+    const next = patients.filter((patient) => {
+      const matchesSearch = [patient.full_name, patient.discipline, patient.status]
+        .join(" ")
+        .includes(search.trim());
+      const matchesTherapistFilter =
+        selectedTherapistFilterIds.length === 0
+        || selectedTherapistFilterIds.includes(patient.therapist_id ?? "");
+
+      return matchesSearch && matchesTherapistFilter;
+    });
+
+    next.sort((left, right) => {
+      if (patientSortMode === "name") {
+        return left.full_name.localeCompare(right.full_name, "he");
+      }
+
+      if (patientSortMode === "balance") {
+        const balanceDelta = (right.payment_balance ?? 0) - (left.payment_balance ?? 0);
+        return balanceDelta !== 0
+          ? balanceDelta
+          : left.full_name.localeCompare(right.full_name, "he");
+      }
+
+      if (patientSortMode === "upcoming") {
+        const leftTime = nextAppointmentByPatientId.get(left.id)
+          ? new Date(nextAppointmentByPatientId.get(left.id)!.appointment_at).getTime()
+          : Number.POSITIVE_INFINITY;
+        const rightTime = nextAppointmentByPatientId.get(right.id)
+          ? new Date(nextAppointmentByPatientId.get(right.id)!.appointment_at).getTime()
+          : Number.POSITIVE_INFINITY;
+
+        return leftTime !== rightTime
+          ? leftTime - rightTime
+          : left.full_name.localeCompare(right.full_name, "he");
+      }
+
+      const leftScore = (patientFlagsById.get(left.id) ?? []).reduce(
+        (total, flag) => total + flag.priority,
+        0,
+      );
+      const rightScore = (patientFlagsById.get(right.id) ?? []).reduce(
+        (total, flag) => total + flag.priority,
+        0,
+      );
+
+      return rightScore !== leftScore
+        ? rightScore - leftScore
+        : left.full_name.localeCompare(right.full_name, "he");
+    });
+
+    return next;
+  }, [
+    nextAppointmentByPatientId,
+    patientFlagsById,
+    patientSortMode,
+    patients,
+    search,
+    selectedTherapistFilterIds,
+  ]);
   const appointmentById = useMemo(
     () => new Map(appointments.map((appointment) => [appointment.id, appointment])),
     [appointments],
@@ -2523,6 +2596,38 @@ export function ClinicFlowApp({
                 </div>
               </article>
             </div>
+
+            <div className="operations-grid">
+              {operationalQueues.map((queue) => (
+                <article key={queue.key} className={`card operations-card tone-${queue.tone}`}>
+                  <div className="card-head">
+                    <div>
+                      <h3>{queue.title}</h3>
+                      <span>{queue.description}</span>
+                    </div>
+                    <div className="operations-count">{queue.count}</div>
+                  </div>
+                  <div className="stack-list operations-list">
+                    {queue.items.map((item) => (
+                      <div key={`${queue.key}-${item.patientId}`} className="list-item">
+                        <strong>{item.patientName}</strong>
+                        <div>{item.reason}</div>
+                        <div className="item-meta">{item.action}</div>
+                        <Link className="ghost-btn inline-link-btn" href={getPatientRecordHref(item.patientId)}>
+                          פתיחת תיק
+                        </Link>
+                      </div>
+                    ))}
+                    {queue.items.length === 0 ? (
+                      <div className="list-item">
+                        <strong>הכול מסודר</strong>
+                        <div className="item-meta">אין כרגע מטופלים שדורשים טיפול מיידי בקטגוריה הזאת.</div>
+                      </div>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </div>
           </section>
 
           <section className={`panel ${resolvedActiveSection === "patients" ? "active" : ""}`}>
@@ -2547,6 +2652,22 @@ export function ClinicFlowApp({
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                   />
+                  <label className="inline-field compact-inline-field patient-sort-field">
+                    <span className="sr-only">מיון מטופלים</span>
+                    <select
+                      value={patientSortMode}
+                      onChange={(event) =>
+                        setPatientSortMode(
+                          event.target.value as "attention" | "name" | "upcoming" | "balance",
+                        )
+                      }
+                    >
+                      <option value="attention">מיון: דורש טיפול תחילה</option>
+                      <option value="name">מיון: שם א-ת</option>
+                      <option value="upcoming">מיון: תור קרוב קודם</option>
+                      <option value="balance">מיון: חוב גבוה קודם</option>
+                    </select>
+                  </label>
                   <div className="section-summary">
                     {filteredPatients.length} מתוך {patients.length} מטופלים
                   </div>
@@ -2789,7 +2910,10 @@ export function ClinicFlowApp({
             ) : (
               <>
                 <div className="journal-patient-list">
-                  {filteredPatients.map((patient) => (
+                  {filteredPatients.map((patient) => {
+                    const patientFlags = patientFlagsById.get(patient.id) ?? [];
+
+                    return (
                     <div
                       key={patient.id}
                       className={`journal-patient-item patient-option-item ${selectedPatient?.id === patient.id ? "selected" : ""}`}
@@ -2800,6 +2924,16 @@ export function ClinicFlowApp({
                         <div className="patient-meta-line">
                           <span>{patient.discipline}</span>
                           <span>{therapistNameById.get(patient.therapist_id ?? "") ?? "ללא מטפל"}</span>
+                        </div>
+                        <div className="patient-alert-chips">
+                          {patientFlags.slice(0, 3).map((flag) => (
+                            <span key={`${patient.id}-${flag.key}`} className={`chip chip-${flag.tone}`}>
+                              {flag.label}
+                            </span>
+                          ))}
+                          {patientFlags.length === 0 ? (
+                            <span className="chip chip-good">תיק מסודר</span>
+                          ) : null}
                         </div>
                       </div>
                       <div className="chips patient-option-chips">
@@ -2884,7 +3018,8 @@ export function ClinicFlowApp({
                         ) : null}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                   {filteredPatients.length === 0 ? (
                     <div className="empty-card patient-list-empty-card">
                       אין כרגע מטופלים שתואמים לחיפוש. אפשר לנקות את הסינון או להוסיף מטופל חדש.

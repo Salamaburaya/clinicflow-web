@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getPatientOperationalFlags } from "@/lib/clinicflow-patient-insights";
 
 type Patient = {
   id: string;
@@ -258,6 +259,7 @@ export function PatientProfileWorkspace({
   const patientAge = getPatientAge(patient.birth_date);
   const paymentBalance = patient.payment_balance ?? 0;
   const latestPayment = payments[0];
+  const operationalFlags = getPatientOperationalFlags(patient, appointments, journalEntries);
 
   const overviewItems = [
     {
@@ -511,6 +513,33 @@ export function PatientProfileWorkspace({
                   <strong>{item.value}</strong>
                 </article>
               ))}
+            </div>
+          </section>
+
+          <section className="workspace-panel-card">
+            <div className="card-head">
+              <h4>דגלי מעקב</h4>
+              <span>מה דורש תשומת לב בתיק</span>
+            </div>
+            <div className="patient-flag-list">
+              {operationalFlags.map((flag) => (
+                <article key={flag.key} className={`patient-flag-card tone-${flag.tone}`}>
+                  <div className="patient-flag-head">
+                    <strong>{flag.label}</strong>
+                    <span>{flag.action}</span>
+                  </div>
+                  <p>{flag.detail}</p>
+                </article>
+              ))}
+              {operationalFlags.length === 0 ? (
+                <article className="patient-flag-card tone-good">
+                  <div className="patient-flag-head">
+                    <strong>תיק יציב</strong>
+                    <span>אין דגלי סיכון פתוחים</span>
+                  </div>
+                  <p>הפרטים המרכזיים, התיעוד והמעקב הכספי נראים תקינים כרגע.</p>
+                </article>
+              ) : null}
             </div>
           </section>
         </div>

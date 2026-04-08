@@ -496,6 +496,10 @@ button, input, select, textarea { font: inherit; }
   min-width: 140px;
 }
 
+.patient-sort-field {
+  min-width: 220px;
+}
+
 .card-head, .section-head {
   display: flex;
   align-items: center;
@@ -552,6 +556,9 @@ button, input, select, textarea { font: inherit; }
 }
 
 .chip.warm { background: rgba(201, 111, 74, 0.14); color: #974021; }
+.chip.critical { background: rgba(160, 36, 36, 0.12); color: #8a1f1f; }
+.chip.info { background: rgba(30, 104, 159, 0.12); color: #1d5f92; }
+.chip.good { background: rgba(15, 118, 110, 0.12); color: #0f645f; }
 
 .timeline-item {
   display: grid;
@@ -729,6 +736,13 @@ button, input, select, textarea { font: inherit; }
 
 .journal-patient-item > div:first-child {
   min-width: 0;
+}
+
+.patient-alert-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .journal-patient-item:hover {
@@ -925,6 +939,36 @@ button, input, select, textarea { font: inherit; }
 .workspace-overview-grid,
 .billing-placeholder-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.operations-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.operations-card {
+  display: grid;
+  gap: 14px;
+}
+
+.operations-count {
+  min-width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(20, 108, 99, 0.1);
+  font-weight: 800;
+  font-size: 1.2rem;
+  color: var(--text);
+}
+
+.operations-list .list-item {
+  display: grid;
+  gap: 8px;
 }
 
 .patient-kpi-card,
@@ -1169,6 +1213,35 @@ button, input, select, textarea { font: inherit; }
   color: var(--muted);
 }
 
+.patient-flag-list {
+  display: grid;
+  gap: 12px;
+}
+
+.patient-flag-card {
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+}
+
+.patient-flag-card p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.patient-flag-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.patient-flag-head span {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
 .tone-good {
   background: rgba(215, 236, 232, 0.5);
 }
@@ -1233,7 +1306,7 @@ button, input, select, textarea { font: inherit; }
 }
 
 @media (max-width: 1080px) {
-  .stats-grid, .dashboard-grid, .reports-grid, .journal-form { grid-template-columns: 1fr; }
+  .stats-grid, .dashboard-grid, .reports-grid, .journal-form, .operations-grid { grid-template-columns: 1fr; }
   .patient-summary-grid, .appointment-context, .appointments-layout { grid-template-columns: 1fr; }
   .patient-workspace-hero, .patient-workspace-grid, .patient-tabs, .patient-kpi-grid, .workspace-overview-grid, .billing-placeholder-grid, .patient-workspace-grid-rich, .workspace-rich-text-grid, .workspace-overview-grid-compact, .workspace-billing-layout { grid-template-columns: 1fr; }
   .patient-dialog-grid, .patient-form-fields { grid-template-columns: 1fr; }
@@ -1415,6 +1488,9 @@ button, input, select, textarea { font: inherit; }
   .patient-option-chips,
   .patient-option-actions,
   .patient-meta-line {
+    width: 100%;
+  }
+  .patient-alert-chips {
     width: 100%;
   }
   .patient-option-chips,
