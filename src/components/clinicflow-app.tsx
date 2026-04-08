@@ -1063,14 +1063,6 @@ export function ClinicFlowApp({
   const clinicalNotesEnabled = canEditClinicalNotes(currentRole);
   const billingManagementEnabled = canManageBilling(currentRole);
 
-  const toggleTherapistFilter = useCallback((therapistId: string) => {
-    setSelectedTherapistFilterIds((current) =>
-      current.includes(therapistId)
-        ? current.filter((id) => id !== therapistId)
-        : [...current, therapistId],
-    );
-  }, []);
-
   const clearTherapistFilters = useCallback(() => {
     setSelectedTherapistFilterIds([]);
   }, []);
@@ -2556,16 +2548,25 @@ export function ClinicFlowApp({
               <div className="therapist-filter-strip">
                 <span className="therapist-filter-label">סינון לפי מטפל</span>
                 <div className="therapist-filter-actions">
-                  {therapists.map((therapist) => (
-                    <button
-                      key={therapist.id}
-                      type="button"
-                      className={`therapist-filter-chip ${selectedTherapistFilterIds.includes(therapist.id) ? "active" : ""}`}
-                      onClick={() => toggleTherapistFilter(therapist.id)}
+                  <label className="therapist-filter-field">
+                    <span className="sr-only">בחירת מטפל אחד או יותר</span>
+                    <select
+                      multiple
+                      value={selectedTherapistFilterIds}
+                      onChange={(event) =>
+                        setSelectedTherapistFilterIds(
+                          Array.from(event.target.selectedOptions, (option) => option.value),
+                        )
+                      }
                     >
-                      {therapist.full_name}
-                    </button>
-                  ))}
+                      {therapists.map((therapist) => (
+                        <option key={therapist.id} value={therapist.id}>
+                          {therapist.full_name}
+                        </option>
+                      ))}
+                    </select>
+                    <small>אפשר לבחור מטפל אחד או יותר</small>
+                  </label>
                   {selectedTherapistFilterIds.length > 0 ? (
                     <button
                       type="button"
