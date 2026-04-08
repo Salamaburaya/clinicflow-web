@@ -2393,12 +2393,32 @@ export function ClinicFlowApp({
             <div className="topbar-copy">
               <div className="brand-lockup" aria-label="ClinicFlow">
                 <div className="brand-mark" aria-hidden="true">
-                  <span>C</span>
-                  <span>F</span>
+                  <svg className="brand-mark-svg" viewBox="0 0 64 64" fill="none">
+                    <path
+                      d="M45.5 16.5C42.2 13.4 37.8 11.5 32.9 11.5C22.5 11.5 14 20 14 30.4C14 40.8 22.5 49.3 32.9 49.3C37.7 49.3 42 47.5 45.3 44.5"
+                      stroke="currentColor"
+                      strokeWidth="4.5"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M24 24.5C26.2 22.6 29.1 21.5 32.3 21.5C39.2 21.5 44.8 27.1 44.8 34"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M23.8 36.7C26 40 29.8 42.1 34.1 42.1C41 42.1 46.6 36.5 46.6 29.6"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                    />
+                    <path d="M45.8 13.5V24.2" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" />
+                    <path d="M40.4 18.9H51.1" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" />
+                  </svg>
                 </div>
                 <div className="brand-type">
                   <strong>ClinicFlow</strong>
-                  <span>Care Operations</span>
+                  <span>Care OS</span>
                 </div>
               </div>
               <span className="topbar-meta">{topbarMetaText}</span>
