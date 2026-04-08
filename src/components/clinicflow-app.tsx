@@ -2379,17 +2379,29 @@ export function ClinicFlowApp({
     }));
   }
 
+  const normalizedClinicName = accessContext.clinicName.trim().toLowerCase();
+  const topbarMetaText =
+    normalizedClinicName === "clinicflow"
+      ? getRoleLabel(currentRole)
+      : `${accessContext.clinicName} | ${getRoleLabel(currentRole)}`;
+
   return (
     <>
       <main className={`page-shell page-shell-${displayMode}`}>
         <section className={`content content-${displayMode}`}>
           <header className="topbar">
             <div className="topbar-copy">
-              <p className="eyebrow">ClinicFlow</p>
-              <h1>מערכת המכון</h1>
-              <span className="topbar-meta">
-                {accessContext.clinicName} | {getRoleLabel(currentRole)}
-              </span>
+              <div className="brand-lockup" aria-label="ClinicFlow">
+                <div className="brand-mark" aria-hidden="true">
+                  <span>C</span>
+                  <span>F</span>
+                </div>
+                <div className="brand-type">
+                  <strong>ClinicFlow</strong>
+                  <span>Care Operations</span>
+                </div>
+              </div>
+              <span className="topbar-meta">{topbarMetaText}</span>
             </div>
 
             {navigationSections.length > 0 ? (
