@@ -639,8 +639,16 @@ export function PatientProfileWorkspace({
               <strong>{paymentBalance < 0 ? formatCurrency(paymentBalance) : "0 ש״ח"}</strong>
             </div>
             <div className="workspace-overview-item tone-warn">
-              <span>פעולה הבאה</span>
-              <strong>{patient.insurance_provider ? "בדיקת זכאות והמשך חיוב" : "הוספת תשלום או חיוב"}</strong>
+              <span>מצב כספי</span>
+              <strong>
+                {paymentBalance > 0
+                  ? "יש חוב פתוח"
+                  : paymentBalance < 0
+                    ? "קיימת יתרת זכות"
+                    : latestPayment
+                      ? "היתרה מאוזנת"
+                      : "אין תנועות כספיות"}
+              </strong>
             </div>
             <div className="workspace-overview-item tone-good">
               <span>תשלום אחרון</span>
