@@ -1067,6 +1067,25 @@ export function ClinicFlowApp({
     setSelectedTherapistFilterIds([]);
   }, []);
 
+  const getTherapistFilterChipStyle = useCallback(
+    (isActive: boolean) => (
+      isActive
+        ? {
+          background: "linear-gradient(180deg, rgba(15, 118, 110, 0.96), rgba(11, 93, 88, 0.96))",
+          color: "#f7fffd",
+          boxShadow: "0 10px 20px rgba(15, 118, 110, 0.18)",
+          transform: "translateY(-1px)",
+        }
+        : {
+          background: "rgba(255, 255, 255, 0.76)",
+          color: "var(--muted)",
+          boxShadow: "none",
+          transform: "none",
+        }
+    ),
+    [],
+  );
+
   function prependReminderNotices(nextNotices: ReminderNotice[]) {
     setReminderNotices((current) => {
       const cleaned = mergeReminderNotices(current, nextNotices).filter(
@@ -2548,22 +2567,31 @@ export function ClinicFlowApp({
               <div className="therapist-filter-strip">
                 <span className="therapist-filter-label">סינון לפי מטפל</span>
                 <div className="therapist-filter-actions">
-                  {therapists.map((therapist) => (
-                    <button
-                      key={therapist.id}
-                      type="button"
-                      className={`therapist-filter-chip ${selectedTherapistFilterIds.includes(therapist.id) ? "active" : ""}`}
-                      onClick={() =>
-                        setSelectedTherapistFilterIds((current) =>
-                          current.includes(therapist.id)
-                            ? current.filter((id) => id !== therapist.id)
-                            : [...current, therapist.id],
-                        )
-                      }
-                    >
-                      {therapist.full_name}
-                    </button>
-                  ))}
+                  {therapists.map((therapist) => {
+                    const isActive = selectedTherapistFilterIds.includes(therapist.id);
+
+                    return (
+                      <label
+                        key={therapist.id}
+                        className="therapist-filter-chip"
+                        aria-pressed={isActive}
+                        style={getTherapistFilterChipStyle(isActive)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isActive}
+                          onChange={() =>
+                            setSelectedTherapistFilterIds((current) =>
+                              current.includes(therapist.id)
+                                ? current.filter((id) => id !== therapist.id)
+                                : [...current, therapist.id],
+                            )
+                          }
+                        />
+                        <span>{therapist.full_name}</span>
+                      </label>
+                    );
+                  })}
                   {selectedTherapistFilterIds.length > 0 ? (
                     <button
                       type="button"
