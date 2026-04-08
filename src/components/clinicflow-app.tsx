@@ -2548,25 +2548,22 @@ export function ClinicFlowApp({
               <div className="therapist-filter-strip">
                 <span className="therapist-filter-label">סינון לפי מטפל</span>
                 <div className="therapist-filter-actions">
-                  <label className="therapist-filter-field">
-                    <span className="sr-only">בחירת מטפל אחד או יותר</span>
-                    <select
-                      multiple
-                      value={selectedTherapistFilterIds}
-                      onChange={(event) =>
-                        setSelectedTherapistFilterIds(
-                          Array.from(event.target.selectedOptions, (option) => option.value),
+                  {therapists.map((therapist) => (
+                    <button
+                      key={therapist.id}
+                      type="button"
+                      className={`therapist-filter-chip ${selectedTherapistFilterIds.includes(therapist.id) ? "active" : ""}`}
+                      onClick={() =>
+                        setSelectedTherapistFilterIds((current) =>
+                          current.includes(therapist.id)
+                            ? current.filter((id) => id !== therapist.id)
+                            : [...current, therapist.id],
                         )
                       }
                     >
-                      {therapists.map((therapist) => (
-                        <option key={therapist.id} value={therapist.id}>
-                          {therapist.full_name}
-                        </option>
-                      ))}
-                    </select>
-                    <small>אפשר לבחור מטפל אחד או יותר</small>
-                  </label>
+                      {therapist.full_name}
+                    </button>
+                  ))}
                   {selectedTherapistFilterIds.length > 0 ? (
                     <button
                       type="button"
